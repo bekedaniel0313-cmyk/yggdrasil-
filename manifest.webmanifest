@@ -1,0 +1,16 @@
+{
+  "name": "Yggdrasil",
+  "short_name": "Yggdrasil",
+  "description": "Szokások, rutinok, napiterv és fejlődés – a saját életfád.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f8f2",
+  "theme_color": "#497a55",
+  "lang": "hu",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
