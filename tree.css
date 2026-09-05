@@ -24,4 +24,4 @@
 .tree-row select{width:100%;padding:9px 10px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--ink)}
 .tree-status{margin:6px 0 0;font-size:12px;color:var(--muted)}
 .tree-row.active .tree-status{color:var(--green)}
-@media(max-width:900px){.tree-wrap{grid-template-columns:1fr}.tree-stage{max-width:420px;margin:0 auto}#mobile{grid-template-columns:repeat(9,1fr)}#mobile button{font-size:8.5px;padding:8px 0}}
+@media(max-width:900px){.tree-wrap{grid-template-columns:1fr}.tree-stage{max-width:420px;margin:0 auto}#mobile{grid-template-columns:repeat(6,1fr)}}

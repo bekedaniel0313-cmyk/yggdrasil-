@@ -9,16 +9,22 @@ function init(bridge){Y=bridge}
 
 function migrate(s){
   s.pmaps=s.pmaps||[];
+  s.rewards=s.rewards||[];s.rewardLog=s.rewardLog||[];
   s.pmaps.forEach(p=>{
     p.emoji=p.emoji||'🗺️';
     p.description=p.description||'';
-    p.fragmentPrice=Number(p.fragmentPrice)||5000;
-    p.lanes=p.lanes||[];p.stages=p.stages||[];p.nodes=p.nodes||[];p.rewards=p.rewards||[];p.log=p.log||[];
+    p.lanes=p.lanes||[];p.stages=p.stages||[];p.nodes=p.nodes||[];
     p.lanes.forEach((l,i)=>{if(!l.color)l.color=LANE_COLORS[i%LANE_COLORS.length]});
     p.stages.forEach(st=>{st.gift=Number(st.gift)||0;st.giftOpened=!!st.giftOpened});
     p.nodes.forEach(n=>{n.ref=n.ref||'';n.deps=n.deps||[];n.required=!!n.required;n.gift=Number(n.gift)||0;n.giftOpened=!!n.giftOpened;n.val=Number(n.val)||0;n.target=Number(n.target)||0;n.done=!!n.done});
-    p.rewards.forEach(r=>{r.price=Number(r.price)||0;r.fragments=Math.max(1,Number(r.fragments)||1);r.collected=Number(r.collected)||0;r.unlockedAt=r.unlockedAt||'';r.image=r.image||''});
+    if(Array.isArray(p.rewards)&&p.rewards.length){p.rewards.forEach(r=>{if(!s.rewards.some(x=>x.id===r.id))s.rewards.push(r)})}
+    if(Array.isArray(p.log)&&p.log.length){s.rewardLog=s.rewardLog.concat(p.log)}
+    if(!s.rewardFragmentPrice&&Number(p.fragmentPrice)>0)s.rewardFragmentPrice=Number(p.fragmentPrice);
+    delete p.rewards;delete p.log;delete p.fragmentPrice;
   });
+  s.rewardFragmentPrice=Number(s.rewardFragmentPrice)||5000;
+  s.rewards.forEach(r=>{r.price=Number(r.price)||0;r.fragments=Math.max(1,Number(r.fragments)||1);r.collected=Number(r.collected)||0;r.unlockedAt=r.unlockedAt||'';r.image=r.image||''});
+  s.rewardLog=s.rewardLog.filter(l=>l&&l.date).sort((a,b)=>a.date<b.date?1:-1).slice(0,80);
 }
 
 function leave(){cur='';focusStage=''}
@@ -62,8 +68,8 @@ function list(){
   (ps.length?`<div class="grid g2">${ps.map(p=>{
     const done=p.nodes.filter(nodeDone).length,total=p.nodes.length,pct=total?Math.round(done/total*100):0;
     const stDone=p.stages.filter((s,i)=>stageComplete(p,i)).length,ai=activeStageIndex(p),act=p.stages[ai];
-    const unlocked=p.rewards.filter(r=>r.unlockedAt).length;
-    return`<div class="card habit-card habit-click" data-pm-open="${p.id}"><div class="row" style="border:0;padding:0"><div class="thumb">${p.emoji}</div><div class="grow"><h4>${esc(p.name)}</h4><p>${esc(p.description||(act?'Aktuális: '+act.name:'Még nincs stáció'))}</p><div class="chips"><span class="chip">${stDone} / ${p.stages.length} stáció</span><span class="chip">${done} / ${total} állomás</span><span class="chip">🎁 ${unlocked} / ${p.rewards.length}</span></div><div class="bar"><i style="width:${pct}%"></i></div></div><button class="btn small" data-pm-edit-project="${p.id}">✏️</button><button class="btn small" data-pm-del-project="${p.id}">🗑️</button></div></div>`}).join('')}</div>`
+    const gifts=p.nodes.filter(n=>n.gift&&!n.giftOpened).length+p.stages.filter(s=>s.gift&&!s.giftOpened).length;
+    return`<div class="card habit-card habit-click" data-pm-open="${p.id}"><div class="row" style="border:0;padding:0"><div class="thumb">${p.emoji}</div><div class="grow"><h4>${esc(p.name)}</h4><p>${esc(p.description||(act?'Aktuális: '+act.name:'Még nincs stáció'))}</p><div class="chips"><span class="chip">${stDone} / ${p.stages.length} stáció</span><span class="chip">${done} / ${total} állomás</span>${gifts?`<span class="chip">🎁 ${gifts} csomag vár</span>`:''}</div><div class="bar"><i style="width:${pct}%"></i></div></div><button class="btn small" data-pm-edit-project="${p.id}">✏️</button><button class="btn small" data-pm-del-project="${p.id}">🗑️</button></div></div>`}).join('')}</div>`
   :'<div class="card empty">Hozd létre az első projektedet – pl. „Diplomamunka”.</div>');
 }
 
@@ -72,9 +78,9 @@ function detail(){
   const ai=activeStageIndex(p);
   const showIdx=useSingle()?[p.stages.findIndex(s=>s.id===focusStage)>=0?p.stages.findIndex(s=>s.id===focusStage):ai]:p.stages.map((s,i)=>i);
   const done=p.nodes.filter(nodeDone).length,total=p.nodes.length;
-  const actions=`<button class="btn" data-go="pmaps">← Térképek</button><button class="btn" data-pm-rewards>🎁 Ajándékok</button><button class="btn primary" data-pm-new-node>+ Állomás</button>`;
+  const actions=`<button class="btn" data-go="pmaps">← Térképek</button><button class="btn primary" data-pm-new-node>+ Állomás</button>`;
   let html=Y.top(`${p.emoji} ${esc(p.name)}`,esc(p.description||'Kattints egy állomásra a szerkesztéshez, a körre a kipipáláshoz.'),actions);
-  html+=`<div class="pm-summary"><span class="chip">${done} / ${total} állomás</span><span class="chip">${p.stages.filter((s,i)=>stageComplete(p,i)).length} / ${p.stages.length} stáció</span><span class="chip">🎁 ${p.rewards.filter(r=>r.unlockedAt).length} / ${p.rewards.length} feloldva</span><span class="grow"></span><button class="btn small" data-pm-new-lane>+ Pálya</button><button class="btn small" data-pm-new-stage>+ Stáció</button><button class="btn small" data-pm-toggle-single>${useSingle()?'⟷ Minden stáció':'▣ Egy stáció'}</button><button class="btn small" data-pm-export="${p.id}">📤 Export</button><button class="btn small" data-pm-edit-project="${p.id}">✏️ Projekt</button></div>`;
+  html+=`<div class="pm-summary"><span class="chip">${done} / ${total} állomás</span><span class="chip">${p.stages.filter((s,i)=>stageComplete(p,i)).length} / ${p.stages.length} stáció</span><span class="grow"></span><button class="btn small" data-pm-new-lane>+ Pálya</button><button class="btn small" data-pm-new-stage>+ Stáció</button><button class="btn small" data-pm-toggle-single>${useSingle()?'⟷ Minden stáció':'▣ Egy stáció'}</button><button class="btn small" data-pm-export="${p.id}">📤 Export</button><button class="btn small" data-pm-edit-project="${p.id}">✏️ Projekt</button></div>`;
   if(!p.stages.length||!p.lanes.length){
     html+=`<div class="card empty">${!p.lanes.length?'Adj hozzá legalább egy pályát (pl. Ügyintézés, Tanulás, Írás)':''}${!p.lanes.length&&!p.stages.length?' és ':''}${!p.stages.length?'legalább egy stációt':''}.</div>`;
     return html;
@@ -151,11 +157,11 @@ function taskOptions(selected){
 }
 
 function projectForm(p){
-  modal(p?'Projekt szerkesztése':'Új projekt',`<div class="formgrid"><div class="field"><label>Név</label><input id="pmName" value="${esc(p?p.name:'')}" placeholder="pl. Diplomamunka" required></div><div class="field"><label>Emoji</label><input id="pmEmoji" value="${esc(p?p.emoji:'🗺️')}" maxlength="12"></div><div class="field"><label>Egy fregment ára (Ft)</label><input id="pmFrag" type="number" min="1" step="500" value="${p?p.fragmentPrice:5000}"></div><div class="field"><label>&nbsp;</label><div class="chip" style="padding:11px 12px">ár ÷ fregmentár = darabszám</div></div><div class="field full"><label>Leírás</label><textarea id="pmDesc">${esc(p?p.description:'')}</textarea></div></div><div class="modalactions">${p?'<button class="btn" id="pmDelete">🗑️ Törlés</button>':''}<button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
+  modal(p?'Projekt szerkesztése':'Új projekt',`<div class="formgrid"><div class="field"><label>Név</label><input id="pmName" value="${esc(p?p.name:'')}" placeholder="pl. Diplomamunka" required></div><div class="field"><label>Emoji</label><input id="pmEmoji" value="${esc(p?p.emoji:'🗺️')}" maxlength="12"></div><div class="field full"><label>Leírás</label><textarea id="pmDesc">${esc(p?p.description:'')}</textarea></div></div><div class="modalactions">${p?'<button class="btn" id="pmDelete">🗑️ Törlés</button>':''}<button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
     Y.$('pmSave').onclick=()=>{
       const name=v('pmName');if(!name)return Y.toast('Adj nevet a projektnek.');
-      if(p){p.name=name;p.emoji=v('pmEmoji')||'🗺️';p.fragmentPrice=Math.max(1,num('pmFrag'));p.description=v('pmDesc')}
-      else{const np={id:Y.uid(),name,emoji:v('pmEmoji')||'🗺️',fragmentPrice:Math.max(1,num('pmFrag')),description:v('pmDesc'),createdAt:Y.today(),lanes:[],stages:[],nodes:[],rewards:[],log:[]};S().pmaps.push(np);cur=np.id;Y.setView('pmapDetail')}
+      if(p){p.name=name;p.emoji=v('pmEmoji')||'🗺️';p.description=v('pmDesc')}
+      else{const np={id:Y.uid(),name,emoji:v('pmEmoji')||'🗺️',description:v('pmDesc'),createdAt:Y.today(),lanes:[],stages:[],nodes:[]};S().pmaps.push(np);cur=np.id;Y.setView('pmapDetail')}
       close();commit();
     };
     if(p)Y.$('pmDelete').onclick=()=>deleteProject(p.id);
@@ -163,7 +169,7 @@ function projectForm(p){
   });
 }
 function deleteProject(id){
-  if(!confirm('Törlöd a projektet minden pályájával, állomásával és ajándékával?'))return;
+  if(!confirm('Törlöd a projektet minden pályájával és állomásával? (A közös ajándék-pool megmarad.)'))return;
   const s=S();s.pmaps=s.pmaps.filter(p=>p.id!==id);if(cur===id){cur='';Y.setView('pmaps')}close();commit();
 }
 
@@ -271,11 +277,12 @@ function bindDrag(p){
 }
 
 /* ---------- gifts & rewards ---------- */
-function fragmentsFor(p,price){return Math.max(1,Math.round(price/p.fragmentPrice))}
-function draw(p,count){
+const fragPrice=()=>S().rewardFragmentPrice||5000;
+function fragmentsFor(price){return Math.max(1,Math.round(price/fragPrice()))}
+function draw(count){
   const drops=[],unlocks=[];
   for(let i=0;i<count;i++){
-    const pool=p.rewards.filter(r=>!r.unlockedAt&&r.collected<r.fragments);
+    const pool=S().rewards.filter(r=>!r.unlockedAt&&r.collected<r.fragments);
     if(!pool.length)break;
     const r=pool[Math.floor(Math.random()*pool.length)];
     r.collected++;
@@ -284,19 +291,19 @@ function draw(p,count){
   }
   return{drops,unlocks};
 }
-function openGift(p,count,label){
-  if(!p.rewards.some(r=>!r.unlockedAt))return Y.toast('Üres az ajándék-pool – vedd fel előbb, mit szeretnél nyerni.')&&false;
-  const{drops,unlocks}=draw(p,count);
+function openGift(count,label){
+  if(!S().rewards.some(r=>!r.unlockedAt))return Y.toast('Üres az ajándék-pool – az Eredmények › Ajándékok oldalon vedd fel, mit szeretnél nyerni.')&&false;
+  const{drops,unlocks}=draw(count);
   const grouped={};drops.forEach(r=>{grouped[r.id]=grouped[r.id]||{r,n:0};grouped[r.id].n++});
   const lines=Object.values(grouped).map(({r,n})=>`<div class="pm-drop">🧩 ${n}× fregment → <b>${esc(r.name)}</b> <span class="chip">${r.collected}/${r.fragments}</span></div>`).join('');
   const un=unlocks.map(r=>`<div class="pm-drop unlock">✨ Feloldva: ${esc(r.name)}${r.price?` · ${r.price.toLocaleString('hu-HU')} Ft`:''}</div>`).join('');
-  p.log.unshift({date:Y.today(),text:`${label}: ${drops.length} fregment${unlocks.length?' · feloldva: '+unlocks.map(r=>r.name).join(', '):''}`});
-  p.log=p.log.slice(0,50);
-  modal('🎁 Ajándékcsomag',`<p class="vow-note" style="margin:0 0 10px">${esc(label)}</p>${lines||'<div class="pm-drop">A pool kiürült, nem maradt húzható fregment.</div>'}${un}<div class="modalactions"><button class="btn" data-pm-rewards>Ajándékok</button><button class="btn primary" data-close="pmapModal" id="pmOk">Rendben</button></div>`,()=>{Y.$('pmOk').onclick=close;const b=document.querySelector('#pmapModalBody [data-pm-rewards]');if(b)b.onclick=()=>rewardsPanel(p)});
+  S().rewardLog.unshift({date:Y.today(),text:`${label}: ${drops.length} fregment${unlocks.length?' · feloldva: '+unlocks.map(r=>r.name).join(', '):''}`});
+  S().rewardLog=S().rewardLog.slice(0,80);
+  modal('🎁 Ajándékcsomag',`<p class="vow-note" style="margin:0 0 10px">${esc(label)}</p>${lines||'<div class="pm-drop">A pool kiürült, nem maradt húzható fregment.</div>'}${un}<div class="modalactions"><button class="btn" data-pm-rewards>Ajándékok</button><button class="btn primary" data-close="pmapModal" id="pmOk">Rendben</button></div>`,()=>{Y.$('pmOk').onclick=close;const b=document.querySelector('#pmapModalBody [data-pm-rewards]');if(b)b.onclick=()=>{close();rewardsPanel()}});
   return true;
 }
 
-function rewardsPanel(p){cur=p.id;Y.show('pmapRewards')}
+function rewardsPanel(){Y.show('pmapRewards')}
 
 const REWARD_CATALOG=[
   {name:'Take Time',image:'ajandek/take-time.jpg'},
@@ -315,14 +322,14 @@ const REWARD_CATALOG=[
   {name:'Duduk',image:'ajandek/duduk.jpg',price:70000},
   {name:'Muay Thai course',image:'ajandek/muay-thai.jpg',price:5000}
 ];
-function catalogModal(p){
-  const have=new Set(p.rewards.map(r=>r.name.toLowerCase()));
+function catalogModal(){
+  const have=new Set(S().rewards.map(r=>r.name.toLowerCase()));
   const rows=REWARD_CATALOG.map((c,i)=>{const in_=have.has(c.name.toLowerCase());return`<div class="pm-catrow ${in_?'have':''}"><img src="${c.image}" alt=""><div class="grow"><b>${esc(c.name)}</b>${in_?'<span class="chip" style="margin-left:6px">már a poolban</span>':''}</div><input type="number" min="0" step="500" placeholder="Ár (Ft)" value="${c.price||''}" data-cat-price="${i}" ${in_?'disabled':''}><label class="pm-catpick"><input type="checkbox" data-cat-pick="${i}" ${in_?'disabled':''}> hozzáad</label></div>`}).join('');
-  modal('📚 Ajándék-katalógus',`<p class="vow-note" style="margin:0 0 10px">Pipáld ki, amit a poolba szeretnél, és írd be az árát – ebből lesz a fregmentszám (ár ÷ ${p.fragmentPrice.toLocaleString('hu-HU')} Ft, kerekítve; ár nélkül 1 fregment).</p><div class="pm-catlist">${rows}</div><div class="modalactions"><button class="btn primary" id="pmCatAdd">Kiválasztottak hozzáadása</button></div>`,()=>{
+  modal('📚 Ajándék-katalógus',`<p class="vow-note" style="margin:0 0 10px">Pipáld ki, amit a poolba szeretnél, és írd be az árát – ebből lesz a fregmentszám (ár ÷ ${fragPrice().toLocaleString('hu-HU')} Ft, kerekítve; ár nélkül 1 fregment).</p><div class="pm-catlist">${rows}</div><div class="modalactions"><button class="btn primary" id="pmCatAdd">Kiválasztottak hozzáadása</button></div>`,()=>{
     Y.$('pmCatAdd').onclick=()=>{
       const picks=[...document.querySelectorAll('[data-cat-pick]:checked')];
       if(!picks.length)return Y.toast('Pipálj ki legalább egyet.');
-      picks.forEach(x=>{const c=REWARD_CATALOG[Number(x.dataset.catPick)],price=Number((document.querySelector(`[data-cat-price="${x.dataset.catPick}"]`)||{}).value)||0;p.rewards.push({id:Y.uid(),name:c.name,price,fragments:price>0?fragmentsFor(p,price):1,collected:0,unlockedAt:'',image:c.image})});
+      picks.forEach(x=>{const c=REWARD_CATALOG[Number(x.dataset.catPick)],price=Number((document.querySelector(`[data-cat-price="${x.dataset.catPick}"]`)||{}).value)||0;S().rewards.push({id:Y.uid(),name:c.name,price,fragments:price>0?fragmentsFor(price):1,collected:0,unlockedAt:'',image:c.image})});
       close();commit();Y.toast(`${picks.length} ajándék hozzáadva`);
     };
   });
@@ -346,25 +353,30 @@ function mosaic(r){
 }
 
 function rewards(){
-  const p=project();if(!p){cur='';return list()}
-  const open=p.rewards.filter(r=>!r.unlockedAt),done=p.rewards.filter(r=>r.unlockedAt);
+  const R=S().rewards,log=S().rewardLog;
+  const open=R.filter(r=>!r.unlockedAt),done=R.filter(r=>r.unlockedAt);
   const card=r=>`<div class="card pm-rcard ${r.unlockedAt?'unlocked':''}">${mosaic(r)}<div class="pm-rbody"><h4>${r.unlockedAt?'✨ ':''}${esc(r.name)}</h4><div class="chips">${r.price?`<span class="chip">${r.price.toLocaleString('hu-HU')} Ft</span>`:''}<span class="chip">${r.unlockedAt?'feloldva · '+r.unlockedAt:`${r.collected} / ${r.fragments} fregment`}</span></div>${r.unlockedAt?'':`<div class="bar"><i style="width:${Math.round(r.collected/r.fragments*100)}%"></i></div>`}<div class="actions" style="margin-top:8px"><button class="btn small" data-pm-edit-reward="${r.id}">✏️</button><button class="btn small" data-pm-del-reward="${r.id}">🗑️</button></div></div></div>`;
-  return Y.top(`🎁 ${esc(p.name)} – ajándékok`,`Egy fregment = ${p.fragmentPrice.toLocaleString('hu-HU')} Ft. A csomagok véletlen fregmenteket adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány fregment kell hozzá.`,`<button class="btn" data-pm-back-map>← Térkép</button><button class="btn" data-pm-catalog>📚 Katalógus</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
+  return Y.top('🎁 Ajándékok',`Egy fregment = ${fragPrice().toLocaleString('hu-HU')} Ft. A térképek ajándékcsomagjai véletlen fregmenteket adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány fregment kell hozzá.`,`<button class="btn" data-go="results">← Eredmények</button><button class="btn" data-pm-fragprice title="Fregment ára">⚙️ ${fragPrice().toLocaleString('hu-HU')} Ft</button><button class="btn" data-pm-catalog>📚 Katalógus</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
   (open.length?`<div class="grid g3 pm-rgrid">${open.map(card).join('')}</div>`:'<div class="card empty">Még nincs ajándék a poolban – vedd fel, mit szeretnél nyerni.</div>')+
   (done.length?`<h3 style="margin:22px 0 10px">✨ Feloldott</h3><div class="grid g3 pm-rgrid">${done.map(card).join('')}</div>`:'')+
-  (p.log.length?`<div class="card" style="margin-top:20px"><h3 style="margin:0 0 8px">Húzások</h3>${p.log.slice(0,12).map(l=>`<p class="pm-log">${l.date} · ${esc(l.text)}</p>`).join('')}</div>`:'');
+  (log.length?`<div class="card" style="margin-top:20px"><h3 style="margin:0 0 8px">Húzások</h3>${log.slice(0,12).map(l=>`<p class="pm-log">${l.date} · ${esc(l.text)}</p>`).join('')}</div>`:'');
+}
+function fragPriceForm(){
+  modal('⚙️ Fregment ára',`<div class="formgrid"><div class="field full"><label>Egy fregment ára (Ft)</label><input id="pmFrag" type="number" min="1" step="500" value="${fragPrice()}"><p class="vow-note" style="margin:6px 0 0">Új ajándékoknál: ár ÷ fregmentár = darabszám. A már felvett ajándékok darabszáma nem változik.</p></div></div><div class="modalactions"><button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
+    Y.$('pmSave').onclick=()=>{S().rewardFragmentPrice=Math.max(1,num('pmFrag'));close();commit()};
+  });
 }
 
-function rewardForm(p,r){
-  modal(r?'Ajándék szerkesztése':'Új ajándék',`<div class="formgrid"><div class="field full"><label>Név</label><input id="pmName" value="${esc(r?r.name:'')}" placeholder="pl. Spirit Island kiegészítő"></div><div class="field"><label>Ár (Ft, opcionális)</label><input id="pmPrice" type="number" min="0" step="100" value="${r?r.price:''}"></div><div class="field"><label>Fregmentek száma</label><input id="pmFrags" type="number" min="1" value="${r?r.fragments:1}"><p class="vow-note" style="margin:6px 0 0">Ár megadásakor automatikusan: ár ÷ ${p.fragmentPrice.toLocaleString('hu-HU')} Ft, kerekítve. Felülírhatod.</p></div><div class="field full"><label>Kép (fájlnév az app mappájában vagy URL)</label><input id="pmImage" value="${esc(r?r.image:'')}" placeholder="pl. ajandek/cascadia.jpg"></div></div><div class="modalactions"><button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
+function rewardForm(r){
+  modal(r?'Ajándék szerkesztése':'Új ajándék',`<div class="formgrid"><div class="field full"><label>Név</label><input id="pmName" value="${esc(r?r.name:'')}" placeholder="pl. Spirit Island kiegészítő"></div><div class="field"><label>Ár (Ft, opcionális)</label><input id="pmPrice" type="number" min="0" step="100" value="${r?r.price:''}"></div><div class="field"><label>Fregmentek száma</label><input id="pmFrags" type="number" min="1" value="${r?r.fragments:1}"><p class="vow-note" style="margin:6px 0 0">Ár megadásakor automatikusan: ár ÷ ${fragPrice().toLocaleString('hu-HU')} Ft, kerekítve. Felülírhatod.</p></div><div class="field full"><label>Kép (fájlnév az app mappájában vagy URL)</label><input id="pmImage" value="${esc(r?r.image:'')}" placeholder="pl. ajandek/cascadia.jpg"></div></div><div class="modalactions"><button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
     let manual=!!r;
-    Y.$('pmPrice').oninput=()=>{if(!manual)Y.$('pmFrags').value=fragmentsFor(p,num('pmPrice'))};
+    Y.$('pmPrice').oninput=()=>{if(!manual)Y.$('pmFrags').value=fragmentsFor(num('pmPrice'))};
     Y.$('pmFrags').oninput=()=>{manual=true};
     Y.$('pmSave').onclick=()=>{
       const name=v('pmName');if(!name)return Y.toast('Adj nevet az ajándéknak.');
       const frags=Math.max(1,num('pmFrags'));
       if(r){r.name=name;r.price=num('pmPrice');r.fragments=frags;r.collected=Math.min(r.collected,frags);r.image=v('pmImage')}
-      else p.rewards.push({id:Y.uid(),name,price:num('pmPrice'),fragments:frags,collected:0,unlockedAt:'',image:v('pmImage')});
+      else S().rewards.push({id:Y.uid(),name,price:num('pmPrice'),fragments:frags,collected:0,unlockedAt:'',image:v('pmImage')});
       close();commit();
     };
     setTimeout(()=>Y.$('pmName').focus(),0);
@@ -377,11 +389,10 @@ function exportProject(p){
   const stage=id=>{const s=p.stages.find(x=>x.id===id);return s?s.name:''};
   const node=id=>{const n=p.nodes.find(x=>x.id===id);return n?n.name:''};
   return{
-    id:p.id,name:p.name,emoji:p.emoji,description:p.description,fragmentPrice:p.fragmentPrice,
+    id:p.id,name:p.name,emoji:p.emoji,description:p.description,
     lanes:p.lanes.map(l=>({id:l.id,name:l.name,color:l.color})),
     stages:p.stages.map(s=>({id:s.id,name:s.name,gift:s.gift,giftOpened:s.giftOpened})),
-    nodes:p.nodes.map(n=>({id:n.id,name:n.name,lane:lane(n.laneId),stage:stage(n.stageId),required:n.required,target:n.target,val:n.val,done:nodeDone(n),gift:n.gift,giftOpened:n.giftOpened,deps:n.deps.map(node).filter(Boolean),ref:n.ref||undefined})),
-    rewards:p.rewards.map(r=>({id:r.id,name:r.name,price:r.price,fragments:r.fragments,collected:r.collected,unlockedAt:r.unlockedAt,image:r.image||undefined}))
+    nodes:p.nodes.map(n=>({id:n.id,name:n.name,lane:lane(n.laneId),stage:stage(n.stageId),required:n.required,target:n.target,val:n.val,done:nodeDone(n),gift:n.gift,giftOpened:n.giftOpened,deps:n.deps.map(node).filter(Boolean),ref:n.ref||undefined}))
   };
 }
 
@@ -398,9 +409,9 @@ function applyImport(raw){
   const name=String(raw.name||'').trim();if(!name)throw new Error('Hiányzik a projekt neve ("name").');
   const s=S();
   const existing=raw.id?s.pmaps.find(p=>p.id===raw.id):null;
-  const old=existing||{lanes:[],stages:[],nodes:[],rewards:[],log:[]};
-  const p=existing||{id:Y.uid(),createdAt:Y.today(),log:[]};
-  p.name=name;p.emoji=String(raw.emoji||p.emoji||'🗺️');p.description=String(raw.description||'');p.fragmentPrice=Math.max(1,Number(raw.fragmentPrice)||p.fragmentPrice||5000);
+  const old=existing||{lanes:[],stages:[],nodes:[]};
+  const p=existing||{id:Y.uid(),createdAt:Y.today()};
+  p.name=name;p.emoji=String(raw.emoji||p.emoji||'🗺️');p.description=String(raw.description||'');
   const norm=x=>typeof x==='string'?{name:x}:(x||{});
   const byName=(list,n)=>list.find(x=>x.name.trim().toLowerCase()===String(n||'').trim().toLowerCase());
   const keep=(list,item)=>(item.id&&list.find(x=>x.id===item.id))||byName(list,item.name);
@@ -419,13 +430,13 @@ function applyImport(raw){
   pre.forEach(n=>{if(n.done&&!n.doneAt)n.doneAt=Y.today();if(!n.done)n.doneAt=''});
   p.nodes=pre.map(n=>{const deps=n._deps.map(d=>{const t=byName(pre,d)||pre.find(x=>x.id===d);return t&&t.id!==n.id?t.id:''}).filter(Boolean);delete n._deps;return Object.assign(n,{deps:[...new Set(deps)]})});
 
-  p.rewards=(raw.rewards||[]).map(norm).filter(r=>r.name).map(r=>{const o=keep(old.rewards,r)||{};const frags=Math.max(1,Number(r.fragments)||(Number(r.price)>0?fragmentsFor(p,Number(r.price)):1));return{id:o.id||r.id||Y.uid(),name:String(r.name).trim(),price:Number(r.price)||0,fragments:frags,collected:Math.min(frags,r.collected!=null?Number(r.collected)||0:(o.collected||0)),unlockedAt:r.unlockedAt!=null?String(r.unlockedAt||''):(o.unlockedAt||''),image:r.image!=null?String(r.image):(o.image||'')}});
+  (raw.rewards||[]).map(norm).filter(r=>r.name).forEach(r=>{if(byName(s.rewards,r.name))return;const frags=Math.max(1,Number(r.fragments)||(Number(r.price)>0?fragmentsFor(Number(r.price)):1));s.rewards.push({id:Y.uid(),name:String(r.name).trim(),price:Number(r.price)||0,fragments:frags,collected:0,unlockedAt:'',image:r.image!=null?String(r.image):''})});
   if(!existing)s.pmaps.push(p);
   return{p,updated:!!existing};
 }
 
 function promptText(){
-  return `Segíts megtervezni egy "progress map"-et az Yggdrasil appomhoz. A térkép egy PROJEKT, amiben vízszintes PÁLYÁK (lanes – párhuzamos munkaszálak, pl. Ügyintézés, Tanulás, Írás) és függőleges STÁCIÓK (stages – egymást követő szakaszok) vannak. Az ÁLLOMÁSOK (nodes) egy pálya és egy stáció metszetében ülnek. A "required": true állomások zárják a következő stációt (amíg nincsenek kész, a következő stáció zárt); a nem kötelezők csúszhatnak. Egy állomás függhet másik állomásoktól ("deps", névvel hivatkozva, akár másik pályáról). Az ajándékok ("gift", fregmentek száma) állomásra vagy stációra tehetők; a projekt "rewards" poolja ajándékokat tartalmaz, amelyek ár ÷ fragmentPrice fregmentre bomlanak.
+  return `Segíts megtervezni egy "progress map"-et az Yggdrasil appomhoz. A térkép egy PROJEKT, amiben vízszintes PÁLYÁK (lanes – párhuzamos munkaszálak, pl. Ügyintézés, Tanulás, Írás) és függőleges STÁCIÓK (stages – egymást követő szakaszok) vannak. Az ÁLLOMÁSOK (nodes) egy pálya és egy stáció metszetében ülnek. A "required": true állomások zárják a következő stációt (amíg nincsenek kész, a következő stáció zárt); a nem kötelezők csúszhatnak. Egy állomás függhet másik állomásoktól ("deps", névvel hivatkozva, akár másik pályáról). Az ajándékcsomagok ("gift", fregmentek száma) állomásra vagy stációra tehetők; a kibontott csomag a közös ajándék-poolból ad véletlen fregmenteket. Új ajándékokat opcionálisan a "rewards" listában javasolhatsz (ár alapján bomlanak fregmentekre).
 
 Beszéljük meg először a tartalmat (milyen pályák, hány stáció, mik a kötelező lépések, mik függenek mitől), aztán a végén add ki a teljes térképet EGYETLEN JSON kódblokkban, pontosan ebben a formában, magyar nevekkel:
 
@@ -434,7 +445,6 @@ Beszéljük meg először a tartalmat (milyen pályák, hány stáció, mik a k�
   "name": "Diplomamunka",
   "emoji": "🎓",
   "description": "egy mondat",
-  "fragmentPrice": 5000,
   "lanes": ["Ügyintézés", "Tanulás", "Írás"],
   "stages": [
     {"name": "Alapozás", "gift": 2},
@@ -489,13 +499,13 @@ function bind(){
   q('[data-pm-open]').forEach(x=>x.onclick=e=>{if(e.target.closest('[data-pm-edit-project],[data-pm-del-project]'))return;openProject(x.dataset.pmOpen)});
   q('[data-pm-edit-project]').forEach(x=>x.onclick=()=>projectForm(S().pmaps.find(p=>p.id===x.dataset.pmEditProject)));
   q('[data-pm-del-project]').forEach(x=>x.onclick=()=>deleteProject(x.dataset.pmDelProject));
+  q('[data-pm-rewards]').forEach(x=>x.onclick=()=>rewardsPanel());
+  q('[data-pm-catalog]').forEach(x=>x.onclick=()=>catalogModal());
+  q('[data-pm-fragprice]').forEach(x=>x.onclick=fragPriceForm);
+  q('#view [data-pm-new-reward]').forEach(x=>x.onclick=()=>rewardForm(null));
+  q('#view [data-pm-edit-reward]').forEach(x=>x.onclick=()=>rewardForm(S().rewards.find(r=>r.id===x.dataset.pmEditReward)));
+  q('#view [data-pm-del-reward]').forEach(x=>x.onclick=()=>{if(!confirm('Törlöd az ajándékot?'))return;S().rewards=S().rewards.filter(r=>r.id!==x.dataset.pmDelReward);commit()});
   const p=project();if(!p)return;
-  q('[data-pm-rewards]').forEach(x=>x.onclick=()=>rewardsPanel(p));
-  q('[data-pm-back-map]').forEach(x=>x.onclick=()=>Y.show('pmapDetail'));
-  q('[data-pm-catalog]').forEach(x=>x.onclick=()=>catalogModal(p));
-  q('#view [data-pm-new-reward]').forEach(x=>x.onclick=()=>rewardForm(p,null));
-  q('#view [data-pm-edit-reward]').forEach(x=>x.onclick=()=>rewardForm(p,p.rewards.find(r=>r.id===x.dataset.pmEditReward)));
-  q('#view [data-pm-del-reward]').forEach(x=>x.onclick=()=>{if(!confirm('Törlöd az ajándékot?'))return;p.rewards=p.rewards.filter(r=>r.id!==x.dataset.pmDelReward);commit()});
   q('[data-pm-toggle-single]').forEach(x=>x.onclick=()=>{single=!useSingle();Y.render()});
   q('[data-pm-tab]').forEach(x=>x.onclick=()=>{focusStage=x.dataset.pmTab;if(!useSingle())single=true;Y.render()});
   q('[data-pm-new-lane]').forEach(x=>x.onclick=()=>laneForm(p,null));
@@ -507,8 +517,8 @@ function bind(){
   q('[data-pm-edit-node]').forEach(x=>x.onclick=()=>nodeForm(p,p.nodes.find(n=>n.id===x.dataset.pmEditNode)));
   q('[data-pm-tick]').forEach(x=>x.onclick=()=>tick(p,p.nodes.find(n=>n.id===x.dataset.pmTick)));
   q('[data-pm-inc]').forEach(x=>x.onclick=()=>inc(p,p.nodes.find(n=>n.id===x.dataset.pmInc)));
-  q('[data-pm-node-gift]').forEach(x=>x.onclick=()=>{const n=p.nodes.find(y=>y.id===x.dataset.pmNodeGift);if(n.giftOpened)return Y.toast('Ezt már kibontottad.');if(!nodeDone(n))return Y.toast('Akkor nyílik, ha az állomás kész.');if(openGift(p,n.gift,'Állomás: '+n.name)){n.giftOpened=true;Y.save()}});
-  q('[data-pm-stage-gift]').forEach(x=>x.onclick=()=>{const s=p.stages.find(y=>y.id===x.dataset.pmStageGift),i=stageIdx(p,s.id);if(s.giftOpened)return Y.toast('Ezt már kibontottad.');if(!stageComplete(p,i))return Y.toast('Akkor nyílik, ha a stáció minden állomása kész.');if(openGift(p,s.gift,'Stáció lezárva: '+s.name)){s.giftOpened=true;Y.save()}});
+  q('[data-pm-node-gift]').forEach(x=>x.onclick=()=>{const n=p.nodes.find(y=>y.id===x.dataset.pmNodeGift);if(n.giftOpened)return Y.toast('Ezt már kibontottad.');if(!nodeDone(n))return Y.toast('Akkor nyílik, ha az állomás kész.');if(openGift(n.gift,`${p.name} · állomás: ${n.name}`)){n.giftOpened=true;Y.save()}});
+  q('[data-pm-stage-gift]').forEach(x=>x.onclick=()=>{const s=p.stages.find(y=>y.id===x.dataset.pmStageGift),i=stageIdx(p,s.id);if(s.giftOpened)return Y.toast('Ezt már kibontottad.');if(!stageComplete(p,i))return Y.toast('Akkor nyílik, ha a stáció minden állomása kész.');if(openGift(s.gift,`${p.name} · stáció lezárva: ${s.name}`)){s.giftOpened=true;Y.save()}});
   bindDrag(p);
   requestAnimationFrame(drawDeps);
   if(!resizeBound){resizeBound=true;window.addEventListener('resize',()=>{if(document.getElementById('pmDeps'))drawDeps()})}

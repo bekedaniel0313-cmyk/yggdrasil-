@@ -1,0 +1,20 @@
+window.HUBS=(function(){
+'use strict';
+let Y=null;
+function init(bridge){Y=bridge}
+const card=(go,icon,title,text,label,value)=>`<div class="card hero" data-go="${go}"><div class="hero-icon">${icon}</div><h3>${title}</h3><p>${text}</p><div class="metric"><span>${label}</span><strong>${value}</strong></div></div>`;
+
+function prio(){
+  const s=Y.state(),alive=TREE.activeCount(),maps=s.pmaps.length;
+  const open=s.pmaps.reduce((n,p)=>n+p.nodes.filter(x=>!x.done&&!x.ref).length,0);
+  return Y.top('Prioritások','Ami igazán számít: az életfád és a hosszú távú útjaid.')+`<div class="grid g3">${card('tree','🌳','Yggdrasil','Hat szint, hat szokás vagy kategória – a fa alulról felfelé kel életre.','Ma él',`${alive} / 6`)}${card('pmaps','🗺️','Térképek','Projektek párhuzamos pályákkal, stációkkal és ajándékcsomagokkal.','Projekt · nyitott állomás',`${maps} · ${open}`)}</div>`;
+}
+
+function results(){
+  const s=Y.state(),kesz=s.milestones.filter(m=>m.completedAt).length,fogadalom=s.vows.length;
+  const R=s.rewards||[],unlocked=R.filter(r=>r.unlockedAt).length,frag=R.filter(r=>!r.unlockedAt).reduce((n,r)=>n+r.collected,0);
+  return Y.top('Eredmények','Amit elértél, és amit kiérdemeltél.')+`<div class="grid g3">${card('progress','🏆','Fejlődés','Mérföldkövek, teljesítmények, fogadalmak és XP-szintek.','Kész mérföldkő · fogadalom',`${kesz} · ${fogadalom}`)}${card('pmapRewards','🎁','Ajándékok','A közös ajándék-pool: mozaikok, fregmentek, feloldott jutalmak.','Feloldva · gyűjtött fregment',`${unlocked} / ${R.length} · ${frag}`)}</div>`;
+}
+
+return{init,prio,results};
+})();
