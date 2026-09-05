@@ -45,7 +45,7 @@ function progressText(l){
     const c=l.c,tg=Y.catTargetFor(c,t),v=Y.categoryValue(c,t);
     if(l.rest)return l.active?'😌 Ma pihenőnap ennél a kategóriánál – a szint él':'😌 Ma pihenőnap – de az alatta lévő szint még nem él';
     if(!tg)return'⚠️ Ennek a kategóriának nincs célja – állíts be egyet a kategória szerkesztőjében.';
-    const per=Y.catPeriodLabel(c),val=`${v} / ${tg} ${Y.catUnit(c)} ${per}`;
+    const per=Y.catPeriodLabel(c),val=`${Y.catFmt(c,v)} / ${Y.catFmt(c,tg)} ${per}`;
     return l.active?`✨ Él · ${val}`:l.done?`✓ Kész · ${val} – de az alatta lévő szint még nem él`:`○ A ${per==='ma'?'mai':per.replace('ezen a ','e ').replace('ebben a ','e ')} cél még hiányzik · ${val}`;
   }
   const h=l.h;
@@ -61,7 +61,7 @@ function habitOptions(selected){
   const hs=S().habits;
   const roots=hs.filter(h=>!h.parentId),kids=id=>hs.filter(h=>h.parentId===id);
   const opt=(h,gy)=>`<option value="${h.id}" ${h.id===selected?'selected':''}>${gy?'↳ ':''}${h.emoji||''} ${Y.esc(h.name)}</option>`;
-  const cats=S().categories.map(c=>`<option value="cat:${c.id}" ${'cat:'+c.id===selected?'selected':''}>${c.emoji||'🍃'} ${Y.esc(c.name)}${c.period==='custom'?` · egyéni napi ${Y.catUnit(c)}`:Number(c.target)>0?` · ${c.target} ${Y.catUnit(c)} / ${c.period==='week'?'hét':c.period==='month'?'hónap':'nap'}`:' · nincs cél'}</option>`).join('');
+  const cats=S().categories.map(c=>`<option value="cat:${c.id}" ${'cat:'+c.id===selected?'selected':''}>${c.emoji||'🍃'} ${Y.esc(c.name)}${c.period==='custom'?` · egyéni napi ${Y.catUnit(c)}`:Number(c.target)>0?` · ${Y.catFmt(c,c.target)} / ${c.period==='week'?'hét':c.period==='month'?'hónap':'nap'}`:' · nincs cél'}</option>`).join('');
   return`<option value="">— válassz szokást vagy kategóriát —</option><optgroup label="Szokások">${roots.map(h=>opt(h,false)+kids(h.id).map(c=>opt(c,true)).join('')).join('')}</optgroup>${cats?`<optgroup label="Kategóriák (időszaki cél)">${cats}</optgroup>`:''}`;
 }
 
