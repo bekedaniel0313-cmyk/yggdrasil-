@@ -79,11 +79,7 @@ function homeCard(){
 
 function bind(){
   document.querySelectorAll('[data-tree-level]').forEach(sel=>sel.onchange=()=>{S().tree.levels[Number(sel.dataset.treeLevel)]=sel.value;Y.save();Y.render()});
-  if(Y.view()==='home'){
-    const grid=document.querySelector('#view .grid.g2');
-    if(grid&&!document.getElementById('treeHomeCard')){grid.insertAdjacentHTML('afterbegin',homeCard());const c=document.getElementById('treeHomeCard');c.onclick=()=>Y.go('tree')}
-  }
 }
 
-return{init,migrate,view,homeCard,bind,activeCount};
+return{init,migrate,view,bind,activeCount};
 })();
