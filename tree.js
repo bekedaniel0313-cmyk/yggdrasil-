@@ -22,7 +22,7 @@ function levels(){
   return S().tree.levels.map((key,i)=>{
     const r=resolve(key);
     const h=r&&r.kind==='habit'?r.h:null,c=r&&r.kind==='cat'?r.c:null;
-    const done=h?Y.complete(h,t):c?(Number(c.target)>0&&Y.categoryMinutes(c.id,t)>=Number(c.target)):false;
+    const done=h?Y.complete(h,t):c?(Number(c.target)>0&&Y.categoryValue(c,t)>=Number(c.target)):false;
     const active=done&&chain;
     chain=active;
     return{i,h,c,r,done,active};
@@ -40,10 +40,10 @@ function progressText(l){
   if(!l.h&&!l.c)return'Nincs szokás vagy kategória rendelve ehhez a szinthez.';
   const t=Y.today();
   if(l.c){
-    const c=l.c,tg=Number(c.target)||0,v=Y.categoryMinutes(c.id,t);
-    if(!tg)return'⚠️ Ennek a kategóriának nincs napi perccélja – állíts be egyet a kategória szerkesztőjében.';
-    const val=`${v} / ${tg} perc ma`;
-    return l.active?`✨ Él · ${val}`:l.done?`✓ Kész · ${val} – de az alatta lévő szint még nem él`:`○ A mai cél még hiányzik · ${val}`;
+    const c=l.c,tg=Number(c.target)||0,v=Y.categoryValue(c,t);
+    if(!tg)return'⚠️ Ennek a kategóriának nincs célja – állíts be egyet a kategória szerkesztőjében.';
+    const per=Y.catPeriodLabel(c),val=`${v} / ${tg} ${Y.catUnit(c)} ${per}`;
+    return l.active?`✨ Él · ${val}`:l.done?`✓ Kész · ${val} – de az alatta lévő szint még nem él`:`○ A ${per==='ma'?'mai':per.replace('ezen a ','e ').replace('ebben a ','e ')} cél még hiányzik · ${val}`;
   }
   const h=l.h;
   const per=h.period==='week'?'ezen a héten':h.period==='month'?'ebben a hónapban':'ma';
@@ -58,14 +58,14 @@ function habitOptions(selected){
   const hs=S().habits;
   const roots=hs.filter(h=>!h.parentId),kids=id=>hs.filter(h=>h.parentId===id);
   const opt=(h,gy)=>`<option value="${h.id}" ${h.id===selected?'selected':''}>${gy?'↳ ':''}${h.emoji||''} ${Y.esc(h.name)}</option>`;
-  const cats=S().categories.map(c=>`<option value="cat:${c.id}" ${'cat:'+c.id===selected?'selected':''}>${c.emoji||'🍃'} ${Y.esc(c.name)}${Number(c.target)>0?` · ${c.target} perc/nap`:' · nincs napi cél'}</option>`).join('');
-  return`<option value="">— válassz szokást vagy kategóriát —</option><optgroup label="Szokások">${roots.map(h=>opt(h,false)+kids(h.id).map(c=>opt(c,true)).join('')).join('')}</optgroup>${cats?`<optgroup label="Kategóriák (napi perccél)">${cats}</optgroup>`:''}`;
+  const cats=S().categories.map(c=>`<option value="cat:${c.id}" ${'cat:'+c.id===selected?'selected':''}>${c.emoji||'🍃'} ${Y.esc(c.name)}${Number(c.target)>0?` · ${c.target} ${Y.catUnit(c)} / ${c.period==='week'?'hét':c.period==='month'?'hónap':'nap'}`:' · nincs cél'}</option>`).join('');
+  return`<option value="">— válassz szokást vagy kategóriát —</option><optgroup label="Szokások">${roots.map(h=>opt(h,false)+kids(h.id).map(c=>opt(c,true)).join('')).join('')}</optgroup>${cats?`<optgroup label="Kategóriák (időszaki cél)">${cats}</optgroup>`:''}`;
 }
 
 function view(){
   const lv=levels(),n=lv.filter(l=>l.active).length;
   const rows=[...lv].reverse().map(l=>`<div class="tree-row ${l.active?'active':l.done?'done':''}"><div class="tree-badge">${l.i+1}</div><div class="grow"><div class="tree-row-head"><b>${NAMES[l.i]}</b><span class="chip">${l.active?'él':l.done?'kész, vár':(l.h||l.c)?'hiányzik':'üres'}</span></div><select data-tree-level="${l.i}">${habitOptions(S().tree.levels[l.i])}</select><p class="tree-status">${progressText(l)}</p></div></div>`).join('');
-  return Y.top('🌳 Yggdrasil',`Minden szint egy szokás vagy egy kategória napi perccélja. A fa alulról felfelé kel életre: egy szint csak akkor világít, ha a célja teljesült <i>és</i> az alatta lévő szint is él. Ma ${n} / 6 szint él.`)+
+  return Y.top('🌳 Yggdrasil',`Minden szint egy szokás vagy egy kategória célja. A fa alulról felfelé kel életre: egy szint csak akkor világít, ha a célja teljesült <i>és</i> az alatta lévő szint is él. Ma ${n} / 6 szint él.`)+
   `<div class="tree-wrap">${stage(lv)}<div class="card tree-levels">${rows}<p class="vow-note" style="margin:10px 0 0">A sorrend számít: az 1. szint (gyökér) a legfontosabb szokásod legyen – ha az kimarad, az egész fa halvány marad.</p></div></div>`;
 }
 
