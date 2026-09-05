@@ -68,6 +68,13 @@
 .pm-mosaic.full .pm-tile{opacity:0}
 .pm-mosaic.full{box-shadow:0 0 0 3px var(--green2),0 0 24px rgba(255,220,120,.6)}
 .pm-mosaic.noimg .pm-tile{background:rgba(36,52,41,.55)}
+.pm-catlist{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto;padding-right:4px}
+.pm-catrow{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.pm-catrow.have{opacity:.55}
+.pm-catrow img{width:44px;height:44px;object-fit:cover;border-radius:8px;flex:none}
+.pm-catrow input[type=number]{width:110px;padding:7px 8px;border-radius:10px;border:1px solid var(--line)}
+.pm-catpick{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;white-space:nowrap}
+.pm-catpick input{width:18px;height:18px}
 .pm-drop{padding:12px 14px;border-radius:14px;background:var(--panel2);margin:8px 0;font-size:14px}
 .pm-drop.unlock{background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;font-weight:800}
 .pm-log{font-size:12px;color:var(--muted);margin:4px 0}

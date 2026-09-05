@@ -298,6 +298,32 @@ function openGift(p,count,label){
 
 function rewardsPanel(p){cur=p.id;Y.show('pmapRewards')}
 
+const REWARD_CATALOG=[
+  {name:'Take Time',image:'ajandek/take-time.jpg'},
+  {name:'Magical Athlete',image:'ajandek/magical-athlete.jpg'},
+  {name:'Heat: Pedal to the Metal',image:'ajandek/heat.jpg'},
+  {name:'The Gang',image:'ajandek/the-gang.jpg'},
+  {name:'Feed the Kraken',image:'ajandek/feed-the-kraken.jpg'},
+  {name:'Endeavor: Deep Sea',image:'ajandek/endeavor-deep-sea.jpg'},
+  {name:'Sherlock Holmes Consulting Detective',image:'ajandek/shcd.jpg'},
+  {name:'SHCD: The Baker Street Irregulars',image:'ajandek/baker-street-irregulars.jpg'},
+  {name:'The Lord of the Rings: Fate of the Fellowship',image:'ajandek/fate-of-the-fellowship.jpg'},
+  {name:'Storyfold: Wildwoods',image:'ajandek/storyfold-wildwoods.jpg'},
+  {name:'Civolution',image:'ajandek/civolution.jpg'}
+];
+function catalogModal(p){
+  const have=new Set(p.rewards.map(r=>r.name.toLowerCase()));
+  const rows=REWARD_CATALOG.map((c,i)=>{const in_=have.has(c.name.toLowerCase());return`<div class="pm-catrow ${in_?'have':''}"><img src="${c.image}" alt=""><div class="grow"><b>${esc(c.name)}</b>${in_?'<span class="chip" style="margin-left:6px">már a poolban</span>':''}</div><input type="number" min="0" step="500" placeholder="Ár (Ft)" data-cat-price="${i}" ${in_?'disabled':''}><label class="pm-catpick"><input type="checkbox" data-cat-pick="${i}" ${in_?'disabled':''}> hozzáad</label></div>`}).join('');
+  modal('📚 Ajándék-katalógus',`<p class="vow-note" style="margin:0 0 10px">Pipáld ki, amit a poolba szeretnél, és írd be az árát – ebből lesz a fregmentszám (ár ÷ ${p.fragmentPrice.toLocaleString('hu-HU')} Ft, kerekítve; ár nélkül 1 fregment).</p><div class="pm-catlist">${rows}</div><div class="modalactions"><button class="btn primary" id="pmCatAdd">Kiválasztottak hozzáadása</button></div>`,()=>{
+    Y.$('pmCatAdd').onclick=()=>{
+      const picks=[...document.querySelectorAll('[data-cat-pick]:checked')];
+      if(!picks.length)return Y.toast('Pipálj ki legalább egyet.');
+      picks.forEach(x=>{const c=REWARD_CATALOG[Number(x.dataset.catPick)],price=Number((document.querySelector(`[data-cat-price="${x.dataset.catPick}"]`)||{}).value)||0;p.rewards.push({id:Y.uid(),name:c.name,price,fragments:price>0?fragmentsFor(p,price):1,collected:0,unlockedAt:'',image:c.image})});
+      close();commit();Y.toast(`${picks.length} ajándék hozzáadva`);
+    };
+  });
+}
+
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
 function revealOrder(r){
   const idx=Array.from({length:r.fragments},(_,i)=>i);let h=hash(r.id);
@@ -319,7 +345,7 @@ function rewards(){
   const p=project();if(!p){cur='';return list()}
   const open=p.rewards.filter(r=>!r.unlockedAt),done=p.rewards.filter(r=>r.unlockedAt);
   const card=r=>`<div class="card pm-rcard ${r.unlockedAt?'unlocked':''}">${mosaic(r)}<div class="pm-rbody"><h4>${r.unlockedAt?'✨ ':''}${esc(r.name)}</h4><div class="chips">${r.price?`<span class="chip">${r.price.toLocaleString('hu-HU')} Ft</span>`:''}<span class="chip">${r.unlockedAt?'feloldva · '+r.unlockedAt:`${r.collected} / ${r.fragments} fregment`}</span></div>${r.unlockedAt?'':`<div class="bar"><i style="width:${Math.round(r.collected/r.fragments*100)}%"></i></div>`}<div class="actions" style="margin-top:8px"><button class="btn small" data-pm-edit-reward="${r.id}">✏️</button><button class="btn small" data-pm-del-reward="${r.id}">🗑️</button></div></div></div>`;
-  return Y.top(`🎁 ${esc(p.name)} – ajándékok`,`Egy fregment = ${p.fragmentPrice.toLocaleString('hu-HU')} Ft. A csomagok véletlen fregmenteket adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány fregment kell hozzá.`,`<button class="btn" data-pm-back-map>← Térkép</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
+  return Y.top(`🎁 ${esc(p.name)} – ajándékok`,`Egy fregment = ${p.fragmentPrice.toLocaleString('hu-HU')} Ft. A csomagok véletlen fregmenteket adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány fregment kell hozzá.`,`<button class="btn" data-pm-back-map>← Térkép</button><button class="btn" data-pm-catalog>📚 Katalógus</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
   (open.length?`<div class="grid g3 pm-rgrid">${open.map(card).join('')}</div>`:'<div class="card empty">Még nincs ajándék a poolban – vedd fel, mit szeretnél nyerni.</div>')+
   (done.length?`<h3 style="margin:22px 0 10px">✨ Feloldott</h3><div class="grid g3 pm-rgrid">${done.map(card).join('')}</div>`:'')+
   (p.log.length?`<div class="card" style="margin-top:20px"><h3 style="margin:0 0 8px">Húzások</h3>${p.log.slice(0,12).map(l=>`<p class="pm-log">${l.date} · ${esc(l.text)}</p>`).join('')}</div>`:'');
@@ -462,6 +488,7 @@ function bind(){
   const p=project();if(!p)return;
   q('[data-pm-rewards]').forEach(x=>x.onclick=()=>rewardsPanel(p));
   q('[data-pm-back-map]').forEach(x=>x.onclick=()=>Y.show('pmapDetail'));
+  q('[data-pm-catalog]').forEach(x=>x.onclick=()=>catalogModal(p));
   q('#view [data-pm-new-reward]').forEach(x=>x.onclick=()=>rewardForm(p,null));
   q('#view [data-pm-edit-reward]').forEach(x=>x.onclick=()=>rewardForm(p,p.rewards.find(r=>r.id===x.dataset.pmEditReward)));
   q('#view [data-pm-del-reward]').forEach(x=>x.onclick=()=>{if(!confirm('Törlöd az ajándékot?'))return;p.rewards=p.rewards.filter(r=>r.id!==x.dataset.pmDelReward);commit()});
