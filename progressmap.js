@@ -23,7 +23,7 @@ function migrate(s){
     delete p.rewards;delete p.log;delete p.fragmentPrice;
   });
   s.rewardFragmentPrice=Number(s.rewardFragmentPrice)||5000;
-  s.rewards.forEach(r=>{r.price=Number(r.price)||0;r.fragments=Math.max(1,Number(r.fragments)||1);r.collected=Number(r.collected)||0;r.unlockedAt=r.unlockedAt||'';r.image=r.image||''});
+  s.rewards.forEach(r=>{r.price=Number(r.price)||0;r.fragments=Math.max(1,Number(r.fragments)||1);r.collected=Number(r.collected)||0;r.unlockedAt=r.unlockedAt||'';r.image=r.image||catalogImage(r.name)});
   s.rewardLog=s.rewardLog.filter(l=>l&&l.date).sort((a,b)=>a.date<b.date?1:-1).slice(0,80);
 }
 
@@ -322,6 +322,13 @@ const REWARD_CATALOG=[
   {name:'Duduk',image:'ajandek/duduk.jpg',price:70000},
   {name:'Muay Thai course',image:'ajandek/muay-thai.jpg',price:5000}
 ];
+const normName=s=>String(s||'').toLowerCase().replace(/[^a-z0-9áéíóöőúüű]+/g,' ').trim();
+function catalogImage(name){
+  const n=normName(name);if(!n)return'';
+  const words=n.split(' ').filter(w=>w.length>1);
+  const hit=REWARD_CATALOG.find(c=>normName(c.name)===n)||REWARD_CATALOG.find(c=>{const cn=normName(c.name);return cn.includes(n)||n.includes(cn)})||REWARD_CATALOG.find(c=>{const cw=normName(c.name).split(' ');return words.length>=2&&words.every(w=>cw.includes(w))});
+  return hit?hit.image:'';
+}
 function catalogModal(){
   const have=new Set(S().rewards.map(r=>r.name.toLowerCase()));
   const rows=REWARD_CATALOG.map((c,i)=>{const in_=have.has(c.name.toLowerCase());return`<div class="pm-catrow ${in_?'have':''}"><img src="${c.image}" alt=""><div class="grow"><b>${esc(c.name)}</b>${in_?'<span class="chip" style="margin-left:6px">már a poolban</span>':''}</div><input type="number" min="0" step="500" placeholder="Ár (Ft)" value="${c.price||''}" data-cat-price="${i}" ${in_?'disabled':''}><label class="pm-catpick"><input type="checkbox" data-cat-pick="${i}" ${in_?'disabled':''}> hozzáad</label></div>`}).join('');
