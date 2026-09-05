@@ -309,11 +309,15 @@ const REWARD_CATALOG=[
   {name:'SHCD: The Baker Street Irregulars',image:'ajandek/baker-street-irregulars.jpg'},
   {name:'The Lord of the Rings: Fate of the Fellowship',image:'ajandek/fate-of-the-fellowship.jpg'},
   {name:'Storyfold: Wildwoods',image:'ajandek/storyfold-wildwoods.jpg'},
-  {name:'Civolution',image:'ajandek/civolution.jpg'}
+  {name:'Civolution',image:'ajandek/civolution.jpg'},
+  {name:'Side Split Squat – Fitness FAQs',image:'ajandek/side-split.jpg',price:30000},
+  {name:'RDX Sport boxzsák',image:'ajandek/rdx-boxzsak.jpg',price:100000},
+  {name:'Duduk',image:'ajandek/duduk.jpg',price:70000},
+  {name:'Muay Thai course',image:'ajandek/muay-thai.jpg',price:5000}
 ];
 function catalogModal(p){
   const have=new Set(p.rewards.map(r=>r.name.toLowerCase()));
-  const rows=REWARD_CATALOG.map((c,i)=>{const in_=have.has(c.name.toLowerCase());return`<div class="pm-catrow ${in_?'have':''}"><img src="${c.image}" alt=""><div class="grow"><b>${esc(c.name)}</b>${in_?'<span class="chip" style="margin-left:6px">már a poolban</span>':''}</div><input type="number" min="0" step="500" placeholder="Ár (Ft)" data-cat-price="${i}" ${in_?'disabled':''}><label class="pm-catpick"><input type="checkbox" data-cat-pick="${i}" ${in_?'disabled':''}> hozzáad</label></div>`}).join('');
+  const rows=REWARD_CATALOG.map((c,i)=>{const in_=have.has(c.name.toLowerCase());return`<div class="pm-catrow ${in_?'have':''}"><img src="${c.image}" alt=""><div class="grow"><b>${esc(c.name)}</b>${in_?'<span class="chip" style="margin-left:6px">már a poolban</span>':''}</div><input type="number" min="0" step="500" placeholder="Ár (Ft)" value="${c.price||''}" data-cat-price="${i}" ${in_?'disabled':''}><label class="pm-catpick"><input type="checkbox" data-cat-pick="${i}" ${in_?'disabled':''}> hozzáad</label></div>`}).join('');
   modal('📚 Ajándék-katalógus',`<p class="vow-note" style="margin:0 0 10px">Pipáld ki, amit a poolba szeretnél, és írd be az árát – ebből lesz a fregmentszám (ár ÷ ${p.fragmentPrice.toLocaleString('hu-HU')} Ft, kerekítve; ár nélkül 1 fregment).</p><div class="pm-catlist">${rows}</div><div class="modalactions"><button class="btn primary" id="pmCatAdd">Kiválasztottak hozzáadása</button></div>`,()=>{
     Y.$('pmCatAdd').onclick=()=>{
       const picks=[...document.querySelectorAll('[data-cat-pick]:checked')];
