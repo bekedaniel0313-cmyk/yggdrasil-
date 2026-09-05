@@ -93,12 +93,12 @@ function detail(){
     showIdx.forEach(i=>{
       const s=p.stages[i],unl=stageUnlocked(p,i);
       const ns=p.nodes.filter(n=>n.laneId===l.id&&n.stageId===s.id);
-      html+=`<div class="pm-cell ${unl?'':'locked'}" style="--lane:${l.color}">`;
+      html+=`<div class="pm-cell ${unl?'':'locked'}" style="--lane:${l.color}" data-pm-cell="${l.id}|${s.id}">`;
       html+=ns.map(n=>{
         const d=nodeDone(n),blocked=!depsMet(p,n),pr=nodeProgress(n),lt=linkedTask(n);
         const cls=['pm-node',d?'done':'',!unl?'locked':'',blocked&&!d?'blocked':'',n.required?'required':''].join(' ');
         const meta=[pr?`<span>${pr.val}/${pr.target}</span>`:'',n.required?'<span class="pm-req" title="kötelező a továbblépéshez">⚑</span>':'',lt?'<span title="szokás-feladathoz kötve">🔗</span>':'',n.deps.length?`<span title="függ másik állomástól">⤴${n.deps.length}</span>`:'',n.gift?`<button class="pm-gift ${n.giftOpened?'opened':d?'ready':''}" data-pm-node-gift="${n.id}" title="${n.giftOpened?'Már kibontva':d?'Kibontható!':'Az állomás teljesítésekor nyílik'}">🎁</button>`:''].filter(Boolean).join('');
-        return`<div class="${cls}" data-pm-node="${n.id}"><button class="pm-dot" data-pm-tick="${n.id}" title="${d?'Visszavonás':'Kész'}">${d?'✓':''}</button><div class="pm-label" data-pm-edit-node="${n.id}">${esc(n.name)}</div>${meta?`<div class="pm-meta">${meta}</div>`:''}${pr&&!lt&&!d?`<button class="btn small" style="margin-top:4px;padding:2px 8px" data-pm-inc="${n.id}">+1</button>`:''}</div>`}).join('');
+        return`<div class="${cls}" data-pm-node="${n.id}" data-pm-stage="${s.id}" draggable="true"><button class="pm-dot" data-pm-tick="${n.id}" title="${d?'Visszavonás':'Kész'}">${d?'✓':''}</button><div class="pm-label" data-pm-edit-node="${n.id}">${esc(n.name)}</div>${meta?`<div class="pm-meta">${meta}</div>`:''}${pr&&!lt&&!d?`<button class="btn small" style="margin-top:4px;padding:2px 8px" data-pm-inc="${n.id}">+1</button>`:''}</div>`}).join('');
       html+=`<button class="pm-plus" data-pm-add-node="${l.id}|${s.id}" title="Új állomás ide">+</button></div>`;
     });
   });
@@ -224,6 +224,51 @@ function tick(p,n){
   commit();
 }
 function inc(p,n){n.val=Math.min(n.target,n.val+1);if(n.val>=n.target){n.done=true;n.doneAt=Y.today()}commit()}
+
+/* ---------- drag & drop (reorder within a stage) ---------- */
+let dragId='';
+function moveNode(p,id,laneId,stageId,beforeId){
+  const n=p.nodes.find(x=>x.id===id);if(!n||n.stageId!==stageId)return;
+  p.nodes=p.nodes.filter(x=>x.id!==id);
+  n.laneId=laneId;
+  let idx=-1;
+  if(beforeId)idx=p.nodes.findIndex(x=>x.id===beforeId);
+  else{const last=p.nodes.map((x,i)=>x.laneId===laneId&&x.stageId===stageId?i:-1).filter(i=>i>=0).pop();idx=last==null?-1:last+1}
+  if(idx<0)p.nodes.push(n);else p.nodes.splice(idx,0,n);
+  commit();
+}
+function bindDrag(p){
+  const wrap=document.getElementById('pmWrap');if(!wrap)return;
+  wrap.querySelectorAll('[data-pm-node]').forEach(el=>{
+    el.addEventListener('dragstart',e=>{dragId=el.dataset.pmNode;el.classList.add('pm-dragging');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',dragId)}catch(err){}});
+    el.addEventListener('dragend',()=>{dragId='';wrap.querySelectorAll('.pm-dragging,.pm-dragover,.pm-drop-left,.pm-drop-right').forEach(x=>x.classList.remove('pm-dragging','pm-dragover','pm-drop-left','pm-drop-right'))});
+  });
+  wrap.querySelectorAll('[data-pm-cell]').forEach(cell=>{
+    const [laneId,stageId]=cell.dataset.pmCell.split('|');
+    const okStage=()=>{const n=p.nodes.find(x=>x.id===dragId);return n&&n.stageId===stageId};
+    cell.addEventListener('dragover',e=>{
+      if(!okStage())return;
+      e.preventDefault();e.dataTransfer.dropEffect='move';
+      cell.classList.add('pm-dragover');
+      wrap.querySelectorAll('.pm-drop-left,.pm-drop-right').forEach(x=>x.classList.remove('pm-drop-left','pm-drop-right'));
+      const t=e.target.closest('[data-pm-node]');
+      if(t&&t.dataset.pmNode!==dragId){const r=t.getBoundingClientRect();t.classList.add(e.clientX<r.left+r.width/2?'pm-drop-left':'pm-drop-right')}
+    });
+    cell.addEventListener('dragleave',e=>{if(!cell.contains(e.relatedTarget))cell.classList.remove('pm-dragover')});
+    cell.addEventListener('drop',e=>{
+      if(!okStage())return;
+      e.preventDefault();
+      const t=e.target.closest('[data-pm-node]');
+      let beforeId='';
+      if(t&&t.dataset.pmNode!==dragId){
+        const r=t.getBoundingClientRect(),left=e.clientX<r.left+r.width/2;
+        if(left)beforeId=t.dataset.pmNode;
+        else{const sib=[...cell.querySelectorAll('[data-pm-node]')].map(x=>x.dataset.pmNode).filter(id=>id!==dragId);beforeId=sib[sib.indexOf(t.dataset.pmNode)+1]||''}
+      }
+      moveNode(p,dragId,laneId,stageId,beforeId);
+    });
+  });
+}
 
 /* ---------- gifts & rewards ---------- */
 function fragmentsFor(p,price){return Math.max(1,Math.round(price/p.fragmentPrice))}
@@ -411,6 +456,7 @@ function bind(){
   q('[data-pm-inc]').forEach(x=>x.onclick=()=>inc(p,p.nodes.find(n=>n.id===x.dataset.pmInc)));
   q('[data-pm-node-gift]').forEach(x=>x.onclick=()=>{const n=p.nodes.find(y=>y.id===x.dataset.pmNodeGift);if(n.giftOpened)return Y.toast('Ezt már kibontottad.');if(!nodeDone(n))return Y.toast('Akkor nyílik, ha az állomás kész.');if(openGift(p,n.gift,'Állomás: '+n.name)){n.giftOpened=true;Y.save()}});
   q('[data-pm-stage-gift]').forEach(x=>x.onclick=()=>{const s=p.stages.find(y=>y.id===x.dataset.pmStageGift),i=stageIdx(p,s.id);if(s.giftOpened)return Y.toast('Ezt már kibontottad.');if(!stageComplete(p,i))return Y.toast('Akkor nyílik, ha a stáció minden állomása kész.');if(openGift(p,s.gift,'Stáció lezárva: '+s.name)){s.giftOpened=true;Y.save()}});
+  bindDrag(p);
   requestAnimationFrame(drawDeps);
   if(!resizeBound){resizeBound=true;window.addEventListener('resize',()=>{if(document.getElementById('pmDeps'))drawDeps()})}
 }
