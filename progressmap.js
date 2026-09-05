@@ -58,7 +58,7 @@ function useSingle(){return single==null?window.innerWidth<900:single}
 /* ---------- views ---------- */
 function list(){
   const ps=S().pmaps;
-  return Y.top('Térképek','Projektek párhuzamos pályákkal, stációkkal és ajándékokkal.','<button class="btn primary" data-pm-new-project>+ Új projekt</button>')+
+  return Y.top('Térképek','Projektek párhuzamos pályákkal, stációkkal és ajándékokkal.','<button class="btn" data-pm-prompt>📋 Prompt Claude-nak</button><button class="btn" data-pm-import>📥 Importálás</button><button class="btn primary" data-pm-new-project>+ Új projekt</button>')+
   (ps.length?`<div class="grid g2">${ps.map(p=>{
     const done=p.nodes.filter(nodeDone).length,total=p.nodes.length,pct=total?Math.round(done/total*100):0;
     const stDone=p.stages.filter((s,i)=>stageComplete(p,i)).length,ai=activeStageIndex(p),act=p.stages[ai];
@@ -74,7 +74,7 @@ function detail(){
   const done=p.nodes.filter(nodeDone).length,total=p.nodes.length;
   const actions=`<button class="btn" data-go="pmaps">← Térképek</button><button class="btn" data-pm-rewards>🎁 Ajándékok</button><button class="btn primary" data-pm-new-node>+ Állomás</button>`;
   let html=Y.top(`${p.emoji} ${esc(p.name)}`,esc(p.description||'Kattints egy állomásra a szerkesztéshez, a körre a kipipáláshoz.'),actions);
-  html+=`<div class="pm-summary"><span class="chip">${done} / ${total} állomás</span><span class="chip">${p.stages.filter((s,i)=>stageComplete(p,i)).length} / ${p.stages.length} stáció</span><span class="chip">🎁 ${p.rewards.filter(r=>r.unlockedAt).length} / ${p.rewards.length} feloldva</span><span class="grow"></span><button class="btn small" data-pm-new-lane>+ Pálya</button><button class="btn small" data-pm-new-stage>+ Stáció</button><button class="btn small" data-pm-toggle-single>${useSingle()?'⟷ Minden stáció':'▣ Egy stáció'}</button><button class="btn small" data-pm-edit-project="${p.id}">✏️ Projekt</button></div>`;
+  html+=`<div class="pm-summary"><span class="chip">${done} / ${total} állomás</span><span class="chip">${p.stages.filter((s,i)=>stageComplete(p,i)).length} / ${p.stages.length} stáció</span><span class="chip">🎁 ${p.rewards.filter(r=>r.unlockedAt).length} / ${p.rewards.length} feloldva</span><span class="grow"></span><button class="btn small" data-pm-new-lane>+ Pálya</button><button class="btn small" data-pm-new-stage>+ Stáció</button><button class="btn small" data-pm-toggle-single>${useSingle()?'⟷ Minden stáció':'▣ Egy stáció'}</button><button class="btn small" data-pm-export="${p.id}">📤 Export</button><button class="btn small" data-pm-edit-project="${p.id}">✏️ Projekt</button></div>`;
   if(!p.stages.length||!p.lanes.length){
     html+=`<div class="card empty">${!p.lanes.length?'Adj hozzá legalább egy pályát (pl. Ügyintézés, Tanulás, Írás)':''}${!p.lanes.length&&!p.stages.length?' és ':''}${!p.stages.length?'legalább egy stációt':''}.</div>`;
     return html;
@@ -278,10 +278,121 @@ function rewardForm(p,r){
   });
 }
 
+/* ---------- import / export ---------- */
+function exportProject(p){
+  const lane=id=>{const l=p.lanes.find(x=>x.id===id);return l?l.name:''};
+  const stage=id=>{const s=p.stages.find(x=>x.id===id);return s?s.name:''};
+  const node=id=>{const n=p.nodes.find(x=>x.id===id);return n?n.name:''};
+  return{
+    id:p.id,name:p.name,emoji:p.emoji,description:p.description,fragmentPrice:p.fragmentPrice,
+    lanes:p.lanes.map(l=>({id:l.id,name:l.name,color:l.color})),
+    stages:p.stages.map(s=>({id:s.id,name:s.name,gift:s.gift,giftOpened:s.giftOpened})),
+    nodes:p.nodes.map(n=>({id:n.id,name:n.name,lane:lane(n.laneId),stage:stage(n.stageId),required:n.required,target:n.target,val:n.val,done:nodeDone(n),gift:n.gift,giftOpened:n.giftOpened,deps:n.deps.map(node).filter(Boolean),ref:n.ref||undefined})),
+    rewards:p.rewards.map(r=>({id:r.id,name:r.name,price:r.price,fragments:r.fragments,collected:r.collected,unlockedAt:r.unlockedAt}))
+  };
+}
+
+function parseJsonLoose(text){
+  let t=String(text||'').trim();
+  const fence=t.match(/```(?:json)?\s*([\s\S]*?)```/i);if(fence)t=fence[1];
+  const a=t.indexOf('{'),b=t.lastIndexOf('}');
+  if(a<0||b<0)throw new Error('Nem találok JSON objektumot a szövegben.');
+  return JSON.parse(t.slice(a,b+1));
+}
+
+function applyImport(raw){
+  if(!raw||typeof raw!=='object')throw new Error('A JSON gyökere objektum kell legyen.');
+  const name=String(raw.name||'').trim();if(!name)throw new Error('Hiányzik a projekt neve ("name").');
+  const s=S();
+  const existing=raw.id?s.pmaps.find(p=>p.id===raw.id):null;
+  const old=existing||{lanes:[],stages:[],nodes:[],rewards:[],log:[]};
+  const p=existing||{id:Y.uid(),createdAt:Y.today(),log:[]};
+  p.name=name;p.emoji=String(raw.emoji||p.emoji||'🗺️');p.description=String(raw.description||'');p.fragmentPrice=Math.max(1,Number(raw.fragmentPrice)||p.fragmentPrice||5000);
+  const norm=x=>typeof x==='string'?{name:x}:(x||{});
+  const byName=(list,n)=>list.find(x=>x.name.trim().toLowerCase()===String(n||'').trim().toLowerCase());
+  const keep=(list,item)=>(item.id&&list.find(x=>x.id===item.id))||byName(list,item.name);
+
+  p.lanes=(raw.lanes||[]).map(norm).filter(l=>l.name).map((l,i)=>{const o=keep(old.lanes,l)||{};return{id:o.id||l.id||Y.uid(),name:String(l.name).trim(),color:l.color||o.color||LANE_COLORS[i%LANE_COLORS.length]}});
+  p.stages=(raw.stages||[]).map(norm).filter(st=>st.name).map(st=>{const o=keep(old.stages,st)||{};return{id:o.id||st.id||Y.uid(),name:String(st.name).trim(),gift:Math.max(0,Number(st.gift)||0),giftOpened:st.giftOpened!=null?!!st.giftOpened:!!o.giftOpened}});
+  if(!p.lanes.length||!p.stages.length)throw new Error('Legalább egy pálya ("lanes") és egy stáció ("stages") kell.');
+
+  const nodesRaw=(raw.nodes||[]).map(norm).filter(n=>n.name);
+  const pre=nodesRaw.map(n=>{
+    const lane=byName(p.lanes,n.lane)||p.lanes.find(l=>l.id===n.lane)||p.lanes[0];
+    const stage=byName(p.stages,n.stage)||p.stages.find(st=>st.id===n.stage)||p.stages[0];
+    const o=keep(old.nodes,n)||{};
+    return{id:o.id||n.id||Y.uid(),name:String(n.name).trim(),laneId:lane.id,stageId:stage.id,required:n.required!=null?!!n.required:!!o.required,target:Math.max(0,Number(n.target)||0),val:n.val!=null?Math.max(0,Number(n.val)||0):(o.val||0),done:n.done!=null?!!n.done:!!o.done,doneAt:o.doneAt||'',gift:Math.max(0,Number(n.gift)||0),giftOpened:n.giftOpened!=null?!!n.giftOpened:!!o.giftOpened,ref:n.ref!=null?String(n.ref):(o.ref||''),_deps:Array.isArray(n.deps)?n.deps:[]};
+  });
+  pre.forEach(n=>{if(n.done&&!n.doneAt)n.doneAt=Y.today();if(!n.done)n.doneAt=''});
+  p.nodes=pre.map(n=>{const deps=n._deps.map(d=>{const t=byName(pre,d)||pre.find(x=>x.id===d);return t&&t.id!==n.id?t.id:''}).filter(Boolean);delete n._deps;return Object.assign(n,{deps:[...new Set(deps)]})});
+
+  p.rewards=(raw.rewards||[]).map(norm).filter(r=>r.name).map(r=>{const o=keep(old.rewards,r)||{};const frags=Math.max(1,Number(r.fragments)||(Number(r.price)>0?fragmentsFor(p,Number(r.price)):1));return{id:o.id||r.id||Y.uid(),name:String(r.name).trim(),price:Number(r.price)||0,fragments:frags,collected:Math.min(frags,r.collected!=null?Number(r.collected)||0:(o.collected||0)),unlockedAt:r.unlockedAt!=null?String(r.unlockedAt||''):(o.unlockedAt||'')}});
+  if(!existing)s.pmaps.push(p);
+  return{p,updated:!!existing};
+}
+
+function promptText(){
+  return `Segíts megtervezni egy "progress map"-et az Yggdrasil appomhoz. A térkép egy PROJEKT, amiben vízszintes PÁLYÁK (lanes – párhuzamos munkaszálak, pl. Ügyintézés, Tanulás, Írás) és függőleges STÁCIÓK (stages – egymást követő szakaszok) vannak. Az ÁLLOMÁSOK (nodes) egy pálya és egy stáció metszetében ülnek. A "required": true állomások zárják a következő stációt (amíg nincsenek kész, a következő stáció zárt); a nem kötelezők csúszhatnak. Egy állomás függhet másik állomásoktól ("deps", névvel hivatkozva, akár másik pályáról). Az ajándékok ("gift", fregmentek száma) állomásra vagy stációra tehetők; a projekt "rewards" poolja ajándékokat tartalmaz, amelyek ár ÷ fragmentPrice fregmentre bomlanak.
+
+Beszéljük meg először a tartalmat (milyen pályák, hány stáció, mik a kötelező lépések, mik függenek mitől), aztán a végén add ki a teljes térképet EGYETLEN JSON kódblokkban, pontosan ebben a formában, magyar nevekkel:
+
+\`\`\`json
+{
+  "name": "Diplomamunka",
+  "emoji": "🎓",
+  "description": "egy mondat",
+  "fragmentPrice": 5000,
+  "lanes": ["Ügyintézés", "Tanulás", "Írás"],
+  "stages": [
+    {"name": "Alapozás", "gift": 2},
+    {"name": "Kutatás", "gift": 3}
+  ],
+  "nodes": [
+    {"name": "Témavezető email", "lane": "Ügyintézés", "stage": "Alapozás", "required": true},
+    {"name": "Szakirodalom 10 cikk", "lane": "Tanulás", "stage": "Alapozás", "required": false, "target": 10},
+    {"name": "Kísérleti terv", "lane": "Írás", "stage": "Kutatás", "required": true, "deps": ["Témavezető email"], "gift": 1}
+  ],
+  "rewards": [
+    {"name": "Egy este társasjáték", "price": 0},
+    {"name": "Új könyv", "price": 10000}
+  ]
+}
+\`\`\`
+
+Szabályok: minden állomás "lane" és "stage" értéke szerepeljen a lanes/stages listában; "deps" csak létező állomásnevekre mutasson; "target" csak akkor, ha számolható cél van (0 vagy elhagyva = nincs); "gift" fregmentszám (elhagyva = nincs ajándék). Ha egy már létező térkép JSON-jét adom (benne "id" mezőkkel), akkor azokat az id-kat tartsd meg a megmaradó elemeknél, hogy az import frissítse a térképet és ne duplikálja.`;
+}
+
+function copyText(text){
+  if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(text).then(()=>true,()=>false);
+  return Promise.resolve(false);
+}
+
+function textModal(title,intro,text,filename){
+  modal(title,`<p class="vow-note" style="margin:0 0 10px">${intro}</p><textarea id="pmText" style="width:100%;min-height:260px;font-family:ui-monospace,monospace;font-size:12px;padding:10px;border-radius:12px;border:1px solid var(--line)" readonly>${esc(text)}</textarea><div class="modalactions"><button class="btn" id="pmDownload">⬇️ Letöltés</button><button class="btn primary" id="pmCopy">📋 Másolás</button></div>`,()=>{
+    const ta=Y.$('pmText');
+    Y.$('pmCopy').onclick=async()=>{const ok=await copyText(text);if(!ok){ta.focus();ta.select();try{document.execCommand('copy')}catch(e){}}Y.toast('Vágólapra másolva')};
+    Y.$('pmDownload').onclick=()=>{const blob=new Blob([text],{type:filename.endsWith('.json')?'application/json':'text/plain'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)};
+    ta.onclick=()=>ta.select();
+  });
+}
+
+function importModal(){
+  modal('📥 Térkép importálása',`<p class="vow-note" style="margin:0 0 10px">Illeszd be a Claude által adott JSON-t (a \`\`\`json blokk is mehet egyben), vagy válassz fájlt. Ha a JSON-ban van "id", ami egy meglévő térképé, azt frissíti – a pipák és a begyűjtött fregmentek megmaradnak.</p><textarea id="pmImportText" style="width:100%;min-height:220px;font-family:ui-monospace,monospace;font-size:12px;padding:10px;border-radius:12px;border:1px solid var(--line)" placeholder='{"name": "Diplomamunka", "lanes": [...], "stages": [...], "nodes": [...]}'></textarea><div class="field" style="margin-top:10px"><label>…vagy fájlból</label><input id="pmImportFile" type="file" accept="application/json,.json,.txt"></div><div class="modalactions"><button class="btn" data-pm-prompt>📋 Prompt Claude-nak</button><button class="btn primary" id="pmImportGo">Importálás</button></div>`,()=>{
+    const run=text=>{try{const{p,updated}=applyImport(parseJsonLoose(text));close();cur=p.id;focusStage='';Y.setView('pmapDetail');commit();Y.toast(updated?`Frissítve: ${p.name}`:`Importálva: ${p.name} · ${p.nodes.length} állomás`)}catch(e){Y.toast('Hiba: '+(e.message||'érvénytelen JSON'))}};
+    Y.$('pmImportGo').onclick=()=>{const t=Y.$('pmImportText').value.trim();if(!t)return Y.toast('Illessz be JSON-t vagy válassz fájlt.');run(t)};
+    Y.$('pmImportFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const fr=new FileReader();fr.onload=()=>run(fr.result);fr.readAsText(f)};
+    document.querySelector('#pmapModalBody [data-pm-prompt]').onclick=()=>textModal('📋 Prompt Claude-nak','Másold be egy claude.ai projekt utasításai közé (vagy egy beszélgetés elejére). Beszéljétek meg a térképet, a végén Claude kiadja a JSON-t, amit ide importálsz.',promptText(),'yggdrasil-terkep-prompt.txt');
+    setTimeout(()=>Y.$('pmImportText').focus(),0);
+  });
+}
+
 /* ---------- bindings ---------- */
 function bind(){
   const q=sel=>document.querySelectorAll(sel);
   q('[data-pm-new-project]').forEach(x=>x.onclick=()=>projectForm(null));
+  q('[data-pm-import]').forEach(x=>x.onclick=importModal);
+  q('[data-pm-prompt]').forEach(x=>x.onclick=()=>textModal('📋 Prompt Claude-nak','Másold be egy claude.ai projekt utasításai közé (vagy egy beszélgetés elejére). Beszéljétek meg a térképet, a végén Claude kiadja a JSON-t, amit a Térképek oldalon importálsz.',promptText(),'yggdrasil-terkep-prompt.txt'));
+  q('[data-pm-export]').forEach(x=>x.onclick=()=>{const p=S().pmaps.find(y=>y.id===x.dataset.pmExport);if(!p)return;textModal(`📤 ${esc(p.name)} – export`,'Ezt add oda Claude-nak, ha a térképet át akarod beszélni/bővíteni. A visszakapott JSON importja frissíti ezt a térképet (az "id" mezők miatt).',JSON.stringify(exportProject(p),null,2),`yggdrasil-terkep-${p.name.replace(/[^\w\-]+/g,'_')}.json`)});
   q('[data-pm-open]').forEach(x=>x.onclick=e=>{if(e.target.closest('[data-pm-edit-project],[data-pm-del-project]'))return;openProject(x.dataset.pmOpen)});
   q('[data-pm-edit-project]').forEach(x=>x.onclick=()=>projectForm(S().pmaps.find(p=>p.id===x.dataset.pmEditProject)));
   q('[data-pm-del-project]').forEach(x=>x.onclick=()=>deleteProject(x.dataset.pmDelProject));
