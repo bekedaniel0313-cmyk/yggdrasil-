@@ -25,7 +25,7 @@ function levels(){
 function activeCount(){return levels().filter(l=>l.active).length}
 
 function stage(lv,cls=''){
-  const slices=lv.map(l=>{const top=BOUNDS[5-l.i]*100,bottom=(1-BOUNDS[6-l.i])*100;return`<img class="tree-slice ${l.active?'on':''}" src="fa-eles.jpg" alt="" style="clip-path:inset(${top}% 0 ${bottom}% 0)">`}).join('');
+  const slices=lv.map(l=>{const top=BOUNDS[5-l.i]*100,bottom=Math.max(0,(1-BOUNDS[6-l.i])*100-(l.i>0?.4:0));return`<img class="tree-slice ${l.active?'on':''}" src="fa-eles.jpg" alt="" style="clip-path:inset(${top}% 0 ${bottom}% 0)">`}).join('');
   const nums=lv.map(l=>`<span class="tree-num ${l.active?'on':l.done?'wait':''}" style="top:${(BOUNDS[5-l.i]+BOUNDS[6-l.i])/2*100}%">${l.i+1}</span>`).join('');
   return`<div class="tree-stage ${cls}"><img class="tree-base" src="fa-halvany.jpg" alt="Yggdrasil" onerror="this.parentNode.classList.add('tree-missing')">${slices}${nums}<div class="tree-missing-msg">Hiányzik a kép: tedd a <b>fa-eles.jpg</b> és <b>fa-halvany.jpg</b> fájlokat az app mappájába.</div></div>`;
 }
