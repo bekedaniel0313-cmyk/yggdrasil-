@@ -17,7 +17,7 @@ function migrate(s){
     p.lanes.forEach((l,i)=>{if(!l.color)l.color=LANE_COLORS[i%LANE_COLORS.length]});
     p.stages.forEach(st=>{st.gift=Number(st.gift)||0;st.giftOpened=!!st.giftOpened});
     p.nodes.forEach(n=>{n.ref=n.ref||'';n.deps=n.deps||[];n.required=!!n.required;n.gift=Number(n.gift)||0;n.giftOpened=!!n.giftOpened;n.val=Number(n.val)||0;n.target=Number(n.target)||0;n.done=!!n.done});
-    p.rewards.forEach(r=>{r.price=Number(r.price)||0;r.fragments=Math.max(1,Number(r.fragments)||1);r.collected=Number(r.collected)||0;r.unlockedAt=r.unlockedAt||''});
+    p.rewards.forEach(r=>{r.price=Number(r.price)||0;r.fragments=Math.max(1,Number(r.fragments)||1);r.collected=Number(r.collected)||0;r.unlockedAt=r.unlockedAt||'';r.image=r.image||''});
   });
 }
 
@@ -296,28 +296,46 @@ function openGift(p,count,label){
   return true;
 }
 
-function rewardsPanel(p){
-  const open=p.rewards.filter(r=>!r.unlockedAt),done=p.rewards.filter(r=>r.unlockedAt);
-  const row=r=>`<div class="pm-reward ${r.unlockedAt?'unlocked':''}"><div class="grow"><h4>${r.unlockedAt?'✨ ':''}${esc(r.name)}${r.price?` <span class="chip">${r.price.toLocaleString('hu-HU')} Ft</span>`:''}</h4>${r.unlockedAt?`<p class="pm-log">feloldva: ${r.unlockedAt}</p>`:`<div class="pm-frags">${Array.from({length:r.fragments},(_,i)=>`<span class="pm-frag ${i<r.collected?'got':''}"></span>`).join('')}</div><p class="pm-log">${r.collected} / ${r.fragments} fregment</p>`}</div><div class="actions"><button class="btn small" data-pm-edit-reward="${r.id}">✏️</button><button class="btn small" data-pm-del-reward="${r.id}">🗑️</button></div></div>`;
-  modal('🎁 Ajándék-pool',`<p class="vow-note" style="margin:0 0 10px">Egy fregment = ${p.fragmentPrice.toLocaleString('hu-HU')} Ft. Az ajándékcsomagok véletlen fregmenteket adnak a még hiányos ajándékokhoz; ha összegyűlt mind, az ajándék feloldódik és kikerül a poolból.</p><div class="modalactions" style="justify-content:flex-start;margin:0 0 8px"><button class="btn primary small" data-pm-new-reward>+ Új ajándék</button></div>${open.length?open.map(row).join(''):'<div class="empty">Még nincs ajándék a poolban.</div>'}${done.length?`<h4 style="margin:16px 0 4px">Feloldott</h4>${done.map(row).join('')}`:''}${p.log.length?`<h4 style="margin:16px 0 4px">Húzások</h4>${p.log.slice(0,8).map(l=>`<p class="pm-log">${l.date} · ${esc(l.text)}</p>`).join('')}`:''}`,()=>{
-    const b=Y.$('pmapModalBody');
-    b.querySelector('[data-pm-new-reward]').onclick=()=>rewardForm(p,null);
-    b.querySelectorAll('[data-pm-edit-reward]').forEach(x=>x.onclick=()=>rewardForm(p,p.rewards.find(r=>r.id===x.dataset.pmEditReward)));
-    b.querySelectorAll('[data-pm-del-reward]').forEach(x=>x.onclick=()=>{if(!confirm('Törlöd az ajándékot?'))return;p.rewards=p.rewards.filter(r=>r.id!==x.dataset.pmDelReward);Y.save();rewardsPanel(p)});
-  });
+function rewardsPanel(p){cur=p.id;Y.show('pmapRewards')}
+
+function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function revealOrder(r){
+  const idx=Array.from({length:r.fragments},(_,i)=>i);let h=hash(r.id);
+  for(let i=idx.length-1;i>0;i--){h=(Math.imul(h,1103515245)+12345)>>>0;const j=h%(i+1);[idx[i],idx[j]]=[idx[j],idx[i]]}
+  return idx;
 }
+function mosaic(r){
+  const n=r.fragments,rows=Math.max(1,Math.round(Math.sqrt(n*0.75))),per=[];
+  let left=n;for(let i=0;i<rows;i++){const k=Math.ceil(left/(rows-i));per.push(k);left-=k}
+  const order=revealOrder(r),rank=[];order.forEach((tile,pos)=>rank[tile]=pos);
+  const full=!!r.unlockedAt;
+  let t=0;
+  const grid=per.map(k=>`<div class="pm-mrow">${Array.from({length:k},()=>{const i=t++;const got=full||rank[i]<r.collected;return`<div class="pm-tile ${got?'got':''}"></div>`}).join('')}</div>`).join('');
+  const img=r.image?`<img src="${esc(r.image)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('noimg')">`:'';
+  return`<div class="pm-mosaic ${full?'full':''} ${r.image?'':'noimg'}">${img}<div class="pm-mosaic-ph">🎁</div><div class="pm-mgrid">${grid}</div></div>`;
+}
+
+function rewards(){
+  const p=project();if(!p){cur='';return list()}
+  const open=p.rewards.filter(r=>!r.unlockedAt),done=p.rewards.filter(r=>r.unlockedAt);
+  const card=r=>`<div class="card pm-rcard ${r.unlockedAt?'unlocked':''}">${mosaic(r)}<div class="pm-rbody"><h4>${r.unlockedAt?'✨ ':''}${esc(r.name)}</h4><div class="chips">${r.price?`<span class="chip">${r.price.toLocaleString('hu-HU')} Ft</span>`:''}<span class="chip">${r.unlockedAt?'feloldva · '+r.unlockedAt:`${r.collected} / ${r.fragments} fregment`}</span></div>${r.unlockedAt?'':`<div class="bar"><i style="width:${Math.round(r.collected/r.fragments*100)}%"></i></div>`}<div class="actions" style="margin-top:8px"><button class="btn small" data-pm-edit-reward="${r.id}">✏️</button><button class="btn small" data-pm-del-reward="${r.id}">🗑️</button></div></div></div>`;
+  return Y.top(`🎁 ${esc(p.name)} – ajándékok`,`Egy fregment = ${p.fragmentPrice.toLocaleString('hu-HU')} Ft. A csomagok véletlen fregmenteket adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány fregment kell hozzá.`,`<button class="btn" data-pm-back-map>← Térkép</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
+  (open.length?`<div class="grid g3 pm-rgrid">${open.map(card).join('')}</div>`:'<div class="card empty">Még nincs ajándék a poolban – vedd fel, mit szeretnél nyerni.</div>')+
+  (done.length?`<h3 style="margin:22px 0 10px">✨ Feloldott</h3><div class="grid g3 pm-rgrid">${done.map(card).join('')}</div>`:'')+
+  (p.log.length?`<div class="card" style="margin-top:20px"><h3 style="margin:0 0 8px">Húzások</h3>${p.log.slice(0,12).map(l=>`<p class="pm-log">${l.date} · ${esc(l.text)}</p>`).join('')}</div>`:'');
+}
+
 function rewardForm(p,r){
-  modal(r?'Ajándék szerkesztése':'Új ajándék',`<div class="formgrid"><div class="field full"><label>Név</label><input id="pmName" value="${esc(r?r.name:'')}" placeholder="pl. Spirit Island kiegészítő"></div><div class="field"><label>Ár (Ft, opcionális)</label><input id="pmPrice" type="number" min="0" step="100" value="${r?r.price:''}"></div><div class="field"><label>Fregmentek száma</label><input id="pmFrags" type="number" min="1" value="${r?r.fragments:1}"><p class="vow-note" style="margin:6px 0 0">Ár megadásakor automatikusan: ár ÷ ${p.fragmentPrice.toLocaleString('hu-HU')} Ft, kerekítve. Felülírhatod.</p></div></div><div class="modalactions"><button class="btn" id="pmBack">← Pool</button><button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
+  modal(r?'Ajándék szerkesztése':'Új ajándék',`<div class="formgrid"><div class="field full"><label>Név</label><input id="pmName" value="${esc(r?r.name:'')}" placeholder="pl. Spirit Island kiegészítő"></div><div class="field"><label>Ár (Ft, opcionális)</label><input id="pmPrice" type="number" min="0" step="100" value="${r?r.price:''}"></div><div class="field"><label>Fregmentek száma</label><input id="pmFrags" type="number" min="1" value="${r?r.fragments:1}"><p class="vow-note" style="margin:6px 0 0">Ár megadásakor automatikusan: ár ÷ ${p.fragmentPrice.toLocaleString('hu-HU')} Ft, kerekítve. Felülírhatod.</p></div><div class="field full"><label>Kép (fájlnév az app mappájában vagy URL)</label><input id="pmImage" value="${esc(r?r.image:'')}" placeholder="pl. ajandek/cascadia.jpg"></div></div><div class="modalactions"><button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
     let manual=!!r;
     Y.$('pmPrice').oninput=()=>{if(!manual)Y.$('pmFrags').value=fragmentsFor(p,num('pmPrice'))};
     Y.$('pmFrags').oninput=()=>{manual=true};
-    Y.$('pmBack').onclick=()=>rewardsPanel(p);
     Y.$('pmSave').onclick=()=>{
       const name=v('pmName');if(!name)return Y.toast('Adj nevet az ajándéknak.');
       const frags=Math.max(1,num('pmFrags'));
-      if(r){r.name=name;r.price=num('pmPrice');r.fragments=frags;r.collected=Math.min(r.collected,frags)}
-      else p.rewards.push({id:Y.uid(),name,price:num('pmPrice'),fragments:frags,collected:0,unlockedAt:''});
-      Y.save();rewardsPanel(p);
+      if(r){r.name=name;r.price=num('pmPrice');r.fragments=frags;r.collected=Math.min(r.collected,frags);r.image=v('pmImage')}
+      else p.rewards.push({id:Y.uid(),name,price:num('pmPrice'),fragments:frags,collected:0,unlockedAt:'',image:v('pmImage')});
+      close();commit();
     };
     setTimeout(()=>Y.$('pmName').focus(),0);
   });
@@ -333,7 +351,7 @@ function exportProject(p){
     lanes:p.lanes.map(l=>({id:l.id,name:l.name,color:l.color})),
     stages:p.stages.map(s=>({id:s.id,name:s.name,gift:s.gift,giftOpened:s.giftOpened})),
     nodes:p.nodes.map(n=>({id:n.id,name:n.name,lane:lane(n.laneId),stage:stage(n.stageId),required:n.required,target:n.target,val:n.val,done:nodeDone(n),gift:n.gift,giftOpened:n.giftOpened,deps:n.deps.map(node).filter(Boolean),ref:n.ref||undefined})),
-    rewards:p.rewards.map(r=>({id:r.id,name:r.name,price:r.price,fragments:r.fragments,collected:r.collected,unlockedAt:r.unlockedAt}))
+    rewards:p.rewards.map(r=>({id:r.id,name:r.name,price:r.price,fragments:r.fragments,collected:r.collected,unlockedAt:r.unlockedAt,image:r.image||undefined}))
   };
 }
 
@@ -371,7 +389,7 @@ function applyImport(raw){
   pre.forEach(n=>{if(n.done&&!n.doneAt)n.doneAt=Y.today();if(!n.done)n.doneAt=''});
   p.nodes=pre.map(n=>{const deps=n._deps.map(d=>{const t=byName(pre,d)||pre.find(x=>x.id===d);return t&&t.id!==n.id?t.id:''}).filter(Boolean);delete n._deps;return Object.assign(n,{deps:[...new Set(deps)]})});
 
-  p.rewards=(raw.rewards||[]).map(norm).filter(r=>r.name).map(r=>{const o=keep(old.rewards,r)||{};const frags=Math.max(1,Number(r.fragments)||(Number(r.price)>0?fragmentsFor(p,Number(r.price)):1));return{id:o.id||r.id||Y.uid(),name:String(r.name).trim(),price:Number(r.price)||0,fragments:frags,collected:Math.min(frags,r.collected!=null?Number(r.collected)||0:(o.collected||0)),unlockedAt:r.unlockedAt!=null?String(r.unlockedAt||''):(o.unlockedAt||'')}});
+  p.rewards=(raw.rewards||[]).map(norm).filter(r=>r.name).map(r=>{const o=keep(old.rewards,r)||{};const frags=Math.max(1,Number(r.fragments)||(Number(r.price)>0?fragmentsFor(p,Number(r.price)):1));return{id:o.id||r.id||Y.uid(),name:String(r.name).trim(),price:Number(r.price)||0,fragments:frags,collected:Math.min(frags,r.collected!=null?Number(r.collected)||0:(o.collected||0)),unlockedAt:r.unlockedAt!=null?String(r.unlockedAt||''):(o.unlockedAt||''),image:r.image!=null?String(r.image):(o.image||'')}});
   if(!existing)s.pmaps.push(p);
   return{p,updated:!!existing};
 }
@@ -443,6 +461,10 @@ function bind(){
   q('[data-pm-del-project]').forEach(x=>x.onclick=()=>deleteProject(x.dataset.pmDelProject));
   const p=project();if(!p)return;
   q('[data-pm-rewards]').forEach(x=>x.onclick=()=>rewardsPanel(p));
+  q('[data-pm-back-map]').forEach(x=>x.onclick=()=>Y.show('pmapDetail'));
+  q('#view [data-pm-new-reward]').forEach(x=>x.onclick=()=>rewardForm(p,null));
+  q('#view [data-pm-edit-reward]').forEach(x=>x.onclick=()=>rewardForm(p,p.rewards.find(r=>r.id===x.dataset.pmEditReward)));
+  q('#view [data-pm-del-reward]').forEach(x=>x.onclick=()=>{if(!confirm('Törlöd az ajándékot?'))return;p.rewards=p.rewards.filter(r=>r.id!==x.dataset.pmDelReward);commit()});
   q('[data-pm-toggle-single]').forEach(x=>x.onclick=()=>{single=!useSingle();Y.render()});
   q('[data-pm-tab]').forEach(x=>x.onclick=()=>{focusStage=x.dataset.pmTab;if(!useSingle())single=true;Y.render()});
   q('[data-pm-new-lane]').forEach(x=>x.onclick=()=>laneForm(p,null));
@@ -461,5 +483,5 @@ function bind(){
   if(!resizeBound){resizeBound=true;window.addEventListener('resize',()=>{if(document.getElementById('pmDeps'))drawDeps()})}
 }
 
-return{init,migrate,leave,list,detail,bind};
+return{init,migrate,leave,list,detail,rewards,bind};
 })();

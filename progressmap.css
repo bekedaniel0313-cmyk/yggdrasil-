@@ -53,6 +53,21 @@
 .pm-frags{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
 .pm-frag{width:14px;height:14px;border-radius:4px;background:#e7eee4;border:1px solid var(--line)}
 .pm-frag.got{background:var(--green);border-color:var(--green)}
+.pm-rcard{padding:14px}
+.pm-rcard.unlocked{border-color:var(--green2)}
+.pm-rbody h4{margin:10px 0 6px;font-size:15px}
+.pm-mosaic{position:relative;aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#dfe9d9,#c9d8c4)}
+.pm-mosaic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.pm-mosaic.noimg img{display:none}
+.pm-mosaic-ph{display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:56px;opacity:.7}
+.pm-mosaic.noimg .pm-mosaic-ph{display:flex}
+.pm-mgrid{position:absolute;inset:0;display:flex;flex-direction:column}
+.pm-mrow{display:flex;flex:1}
+.pm-tile{flex:1;background:rgba(36,52,41,.92);border:1px solid rgba(255,253,248,.35);transition:background .5s,opacity .5s}
+.pm-tile.got{background:transparent;border-color:rgba(255,253,248,.18)}
+.pm-mosaic.full .pm-tile{opacity:0}
+.pm-mosaic.full{box-shadow:0 0 0 3px var(--green2),0 0 24px rgba(255,220,120,.6)}
+.pm-mosaic.noimg .pm-tile{background:rgba(36,52,41,.55)}
 .pm-drop{padding:12px 14px;border-radius:14px;background:var(--panel2);margin:8px 0;font-size:14px}
 .pm-drop.unlock{background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;font-weight:800}
 .pm-log{font-size:12px;color:var(--muted);margin:4px 0}
