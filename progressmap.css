@@ -75,6 +75,17 @@
 .pm-catrow input[type=number]{width:110px;padding:7px 8px;border-radius:10px;border:1px solid var(--line)}
 .pm-catpick{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;white-space:nowrap}
 .pm-catpick input{width:18px;height:18px}
+.datebox .btn{white-space:nowrap}
+.mc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}
+.mc-head b{font-size:14px;text-transform:capitalize}
+.mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.mc-w{font-size:10px;font-weight:800;color:var(--muted);text-align:center;padding:2px 0}
+.mc-day{position:relative;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:7px 0 11px;font-size:13px;font-weight:700;cursor:pointer;line-height:1}
+.mc-day:hover{border-color:var(--green2)}
+.mc-day.tod{border-color:var(--green);color:var(--green)}
+.mc-day.sel{background:var(--green);border-color:var(--green);color:#fff}
+.mc-dot{position:absolute;left:50%;bottom:4px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;border:1.5px solid currentColor;background:transparent}
+.mc-dot.full{background:currentColor}
 .pm-drop{padding:12px 14px;border-radius:14px;background:var(--panel2);margin:8px 0;font-size:14px}
 .pm-drop.unlock{background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;font-weight:800}
 .pm-log{font-size:12px;color:var(--muted);margin:4px 0}
