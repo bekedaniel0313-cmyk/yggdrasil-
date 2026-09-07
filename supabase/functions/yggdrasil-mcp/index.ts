@@ -52,7 +52,15 @@ async function log(tool: string, summary: string, args: Json) {
 function rawLog(s: Json, hid: string, date: string) { const x = (s.logs || {})[hid + "|" + date]; if (x && typeof x === "object") return { value: Number(x.value) || 0, status: x.status || ((Number(x.value) || 0) > 0 ? "full" : "none") }; const v = Number(x) || 0; return { value: v, status: v > 0 ? "full" : "none" }; }
 function periodValue(s: Json, h: Json, date: string) { return periodDates(h.period || "day", date).reduce((a, d) => { const l = rawLog(s, h.id, d); return a + (l.status === "full" ? l.value : 0); }, 0); }
 function habitComplete(s: Json, h: Json, date: string) { return periodValue(s, h, date) >= Number(h.target || 1); }
-function categoryMinutes(s: Json, cid: string, date: string) { const hs = (s.habits || []).filter((h: Json) => h.categoryId === cid && h.measure === "minutes"); return hs.reduce((a: number, h: Json) => a + rawLog(s, h.id, date).value, 0) + (Number((s.catLogs || {})[cid + "|" + date]) || 0); }
+function categoryMinutes(s: Json, cid: string, date: string) {
+  const hs = (s.habits || []).filter((h: Json) => h.categoryId === cid);
+  let m = hs.filter((h: Json) => h.measure === "minutes").reduce((a: number, h: Json) => a + rawLog(s, h.id, date).value, 0) + (Number((s.catLogs || {})[cid + "|" + date]) || 0);
+  const nonMin = new Set(hs.filter((h: Json) => h.measure !== "minutes").map((h: Json) => h.id));
+  m += (((s.dayplan || {})[date]) || []).reduce((a: number, e: Json) => a + ((e.habitId && nonMin.has(e.habitId) && planDone(s, e)) ? (Number(e.minutes) || 0) : 0), 0);
+  const evIds = new Set((s.events || []).filter((ev: Json) => ev.categoryId === cid).map((ev: Json) => ev.id));
+  if (evIds.size) m += (s.entries || []).reduce((a: number, en: Json) => a + ((en.kind === "event" && en.date === date && evIds.has(en.eventId)) ? (Number(en.minutes) || 0) : 0), 0);
+  return m;
+}
 function catTargetFor(c: Json, date: string) { if (c.period === "custom") { const wt = c.weekTargets || []; return Math.max(0, Number(wt[(dateOnly(date).getDay() + 6) % 7]) || 0); } return Math.max(0, Number(c.target) || 0); }
 function categoryValue(s: Json, c: Json, date: string) { const dates = periodDates(c.period === "custom" ? "day" : (c.period || "day"), date); if ((c.measure || "minutes") === "count") { const hs = (s.habits || []).filter((h: Json) => h.categoryId === c.id); return dates.reduce((a, d) => a + hs.filter((h: Json) => rawLog(s, h.id, d).status === "full").length, 0); } return dates.reduce((a, d) => a + categoryMinutes(s, c.id, d), 0); }
 function catFmt(c: Json, n: number) { if ((c.measure || "minutes") === "count") return `${n} alkalom`; return n >= 60 && n % 15 === 0 ? `${(n / 60).toFixed(2).replace(/\.?0+$/, "").replace(".", ",")} ó` : `${n} perc`; }
