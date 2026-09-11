@@ -2,8 +2,8 @@ window.UILEVEL=(function(){
 'use strict';
 let Y=null;
 function init(bridge){Y=bridge}
-const MIN={home:4,prio:1,focus:1,tree:2,pmaps:3,pmapDetail:3,pmapRewards:9,schedule:4,dayplan:4,calendar:5,pomodoro:5,activities:6,habits:6,habitDetail:6,categories:6,categoryDetail:6,naplo:6,groups:7,groupDetail:7,events:7,eventDetail:7,routines:8,routineDetail:8,results:9,progress:9,settings:1};
-const DESC={1:'Csak a Prioritások – Fókusz',2:'+ Yggdrasil fa',3:'+ Térképek',4:'+ Kezdőlap és Napiterv',5:'+ Naptár és Pomodoro',6:'+ Szokások és Kategóriák',7:'+ Feladatok és Események',8:'+ Rutinok',9:'+ Eredmények: Fejlődés, Ajándékok',10:'Minden funkció'};
+const MIN={prio:1,focus:1,tree:1,pmaps:1,pmapDetail:1,settings:1,home:2,schedule:3,dayplan:3,calendar:4,pomodoro:5,activities:6,habits:6,habitDetail:6,categories:6,categoryDetail:6,naplo:6,groups:7,groupDetail:7,events:7,eventDetail:7,routines:8,routineDetail:8,results:9,progress:9,pmapRewards:10};
+const DESC={1:'Csak a Prioritások: Fókusz, Yggdrasil, Térképek',2:'+ Kezdőlap',3:'+ Napiterv',4:'+ Naptár',5:'+ Pomodoro',6:'+ Szokások és Kategóriák',7:'+ Feladatok és Események',8:'+ Rutinok',9:'+ Eredmények: Fejlődés',10:'+ Ajándékok – minden funkció'};
 function level(){return Math.min(10,Math.max(1,Number(Y.state().level)||10))}
 function allowed(v){return level()>=(MIN[v]||1)}
 function migrate(s){if(!s.level)s.level=10}
