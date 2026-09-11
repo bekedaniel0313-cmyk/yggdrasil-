@@ -502,7 +502,7 @@ function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'
 function importData(file){if(!file)return;const fr=new FileReader();fr.onload=()=>{try{state=migrate(JSON.parse(fr.result));save();render();toast('Mentés betöltve')}catch(e){alert('Érvénytelen mentés.')}};fr.readAsText(file)}
 function resetAll(){if(confirm('Minden adat törlődik. Folytatod?')){state=base();save();go('home')}}
 PMAP.init({state:()=>state,save,render,go,esc,uid,today,toast,openModal,closeModal,$,top,toggleTask,setView:v=>{currentView=v},show:v=>{currentView=v;render();window.scrollTo(0,0)}});
-TREE.init({state:()=>state,save,render,go,esc,today,top,complete,periodValue,categoryMinutes,categoryValue,catUnit,catFmt,catPeriodLabel,catTargetFor,view:()=>currentView});
+TREE.init({state:()=>state,save,render,go,esc,today,top,complete,periodValue,categoryMinutes,categoryValue,catUnit,catFmt,catPeriodLabel,catTargetFor,setLog,clearLog,setMinimum,getStatus,openCategoryDetail,view:()=>currentView});
 HUBS.init({state:()=>state,top,esc,today});
 CATLOG.init({state:()=>state,save,render,esc,uid,today,toast,setLog,clearLog,getLog,catLogAdd,addEntry});
 UILEVEL.init({state:()=>state,save,render,toast});
