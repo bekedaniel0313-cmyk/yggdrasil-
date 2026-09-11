@@ -17,8 +17,9 @@ function resolve(key){
   if(key.startsWith('cat:')){const c=S().categories.find(x=>x.id===key.slice(4));return c?{kind:'cat',c,name:c.name,emoji:c.emoji}:null}
   const h=S().habits.find(x=>x.id===key);return h?{kind:'habit',h,name:h.name,emoji:h.emoji}:null;
 }
-function levels(){
-  const t=Y.today();let chain=true;
+let calCur=null;
+function levels(date){
+  const t=date||Y.today();let chain=true;
   return S().tree.levels.map((key,i)=>{
     const r=resolve(key);
     const h=r&&r.kind==='habit'?r.h:null,c=r&&r.kind==='cat'?r.c:null;
@@ -65,11 +66,25 @@ function habitOptions(selected){
   return`<option value="">— válassz szokást vagy kategóriát —</option><optgroup label="Szokások">${roots.map(h=>opt(h,false)+kids(h.id).map(c=>opt(c,true)).join('')).join('')}</optgroup>${cats?`<optgroup label="Kategóriák (időszaki cél)">${cats}</optgroup>`:''}`;
 }
 
+function calendar(){
+  const ma=Y.today(),cur=calCur||new Date(ma+'T12:00:00'),y=cur.getFullYear(),m=cur.getMonth(),first=new Date(y,m,1,12),offset=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate();
+  const configured=S().tree.levels.some(Boolean);
+  let cells='',sum=0,cnt=0;
+  for(let i=0;i<offset;i++)cells+='<span></span>';
+  for(let d=1;d<=days;d++){
+    const dt=new Date(y,m,d,12),iso=dt.toLocaleDateString('sv-SE');
+    if(iso>ma||!configured){cells+=`<span class="tc-day future ${iso===ma?'tod':''}">${d}</span>`;continue}
+    const n=levels(iso).filter(l=>l.active).length;sum+=n;cnt++;
+    cells+=`<span class="tc-day tc-${n} ${iso===ma?'tod':''}" title="${iso} · ${n}/6 szint">${n}</span>`;
+  }
+  const label=first.toLocaleDateString('hu-HU',{year:'numeric',month:'long'});
+  return`<div class="card tree-cal"><div class="tree-cal-head"><button type="button" class="btn small" data-tree-cal="-1" title="Előző hónap">‹</button><b>${label}</b><button type="button" class="btn small" data-tree-cal="1" title="Következő hónap">›</button></div><div class="tc-grid">${['H','K','Sze','Cs','P','Szo','V'].map(w=>`<span class="tc-w">${w}</span>`).join('')}${cells}</div><div class="tc-legend">${[0,1,2,3,4,5,6].map(n=>`<span><i class="tc-${n}"></i>${n}</span>`).join('')}<span class="tc-avg">${cnt?`átlag ${(sum/cnt).toFixed(1)}`:''}</span></div></div>`;
+}
 function view(){
   const lv=levels(),n=lv.filter(l=>l.active).length;
   const rows=[...lv].reverse().map(l=>`<div class="tree-row ${l.active?'active':l.done?'done':''}"><div class="tree-badge">${l.i+1}</div><div class="grow"><div class="tree-row-head"><b>${NAMES[l.i]}</b><span class="chip">${l.active?'él':l.done?'kész, vár':(l.h||l.c)?'hiányzik':'üres'}</span></div><select data-tree-level="${l.i}">${habitOptions(S().tree.levels[l.i])}</select><p class="tree-status">${progressText(l)}</p></div></div>`).join('');
   return Y.top('🌳 Yggdrasil',`Minden szint egy szokás vagy egy kategória célja. A fa alulról felfelé kel életre: egy szint csak akkor világít, ha a célja teljesült <i>és</i> az alatta lévő szint is él. Ma ${n} / 6 szint él.`)+
-  `<div class="tree-wrap">${stage(lv)}<div class="card tree-levels">${rows}<p class="vow-note" style="margin:10px 0 0">A sorrend számít: az 1. szint (gyökér) a legfontosabb szokásod legyen – ha az kimarad, az egész fa halvány marad.</p></div></div>`;
+  `<div class="tree-wrap">${stage(lv)}<div class="tree-right"><div class="card tree-levels">${rows}<p class="vow-note" style="margin:10px 0 0">A sorrend számít: az 1. szint (gyökér) a legfontosabb szokásod legyen – ha az kimarad, az egész fa halvány marad.</p></div>${calendar()}</div></div>`;
 }
 
 function homeCard(){
@@ -79,6 +94,7 @@ function homeCard(){
 
 function bind(){
   document.querySelectorAll('[data-tree-level]').forEach(sel=>sel.onchange=()=>{S().tree.levels[Number(sel.dataset.treeLevel)]=sel.value;Y.save();Y.render()});
+  document.querySelectorAll('[data-tree-cal]').forEach(b=>b.onclick=()=>{const cur=calCur||new Date(Y.today()+'T12:00:00');calCur=new Date(cur.getFullYear(),cur.getMonth()+Number(b.dataset.treeCal),1,12);Y.render()});
 }
 
 return{init,migrate,view,bind,activeCount};
