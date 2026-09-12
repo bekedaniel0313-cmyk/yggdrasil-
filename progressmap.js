@@ -9,7 +9,7 @@ function init(bridge){Y=bridge}
 
 function migrate(s){
   s.pmaps=s.pmaps||[];
-  s.rewards=s.rewards||[];s.rewardLog=s.rewardLog||[];s.darabkak=Number(s.darabkak)||0;
+  s.rewards=s.rewards||[];s.rewardLog=s.rewardLog||[];s.darabkak=Number(s.darabkak)||0;s.favReward=typeof s.favReward==='string'?s.favReward:'';
   s.pmaps.forEach(p=>{
     p.emoji=p.emoji||'🗺️';
     p.description=p.description||'';
@@ -336,6 +336,8 @@ function rollOutcome(){
 }
 function giveTo(r){r.collected++;const won=r.collected>=r.fragments;if(won)r.unlockedAt=Y.today();return won}
 function poolOpen(){return S().rewards.filter(r=>!r.unlockedAt&&r.collected<r.fragments)}
+// one reward can be the favourite (❤): it is drawn with double weight
+function pickWeighted(){const p=poolOpen(),fav=S().favReward;const w=p.map(r=>r.id===fav?2:1),tot=w.reduce((a,b)=>a+b,0);let x=Math.random()*tot;for(let i=0;i<p.length;i++){x-=w[i];if(x<0)return p[i]}return p[p.length-1]}
 function revealHtml(r,won,joker){return`<div class="sack-reveal ${won?'win':''}"><div class="sack-img">${r.image?`<img src="${esc(r.image)}" alt="">`:'🎁'}</div><div>${joker?'<span class="chip" style="background:#fff4d6;color:#8a5a00">🃏 joker</span> ':''}<b>${esc(r.name)}</b><div class="chip" style="margin-top:4px">${r.collected} / ${r.fragments} darabka</div>${won?'<div class="pm-drop unlock" style="margin:8px 0 0">✨ Feloldva!</div>':''}</div></div>`}
 function pickReward(){
   return new Promise(res=>{
@@ -374,7 +376,7 @@ function sackModal(){
         if(!poolOpen().length)break;
         const joker=Math.random()<.15;
         let r;
-        if(joker){r=await pickReward()}else{const p=poolOpen();r=p[Math.floor(Math.random()*p.length)]}
+        if(joker){r=await pickReward()}else{r=pickWeighted()}
         const won=giveTo(r);got.push({r,won,joker,c:r.collected});
         res.insertAdjacentHTML('beforeend',revealHtml(r,won,joker));
         Y.save();
@@ -401,7 +403,9 @@ function mosaic(r){
   let t=0;
   const grid=per.map(k=>`<div class="pm-mrow">${Array.from({length:k},()=>{const i=t++;const got=full||rank[i]<r.collected;return`<div class="pm-tile ${got?'got':''}"></div>`}).join('')}</div>`).join('');
   const img=r.image?`<img src="${esc(r.image)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('noimg')">`:'';
-  return`<div class="pm-mosaic ${full?'full':''} ${r.image?'':'noimg'}">${img}<div class="pm-mosaic-ph">🎁</div><div class="pm-mgrid">${grid}</div></div>`;
+  const fav=S().favReward===r.id;
+  const heart=full?'':`<button type="button" class="pm-fav ${fav?'on':''}" data-pm-fav="${r.id}" title="${fav?'Kedvenc – dupla eséllyel kap darabkát (kattints a levételhez)':'Legyen ez a kedvenc – dupla eséllyel kap darabkát'}">${fav?'❤':'♡'}</button>`;
+  return`<div class="pm-mosaic ${full?'full':''} ${r.image?'':'noimg'}">${img}<div class="pm-mosaic-ph">🎁</div><div class="pm-mgrid">${grid}</div>${heart}</div>`;
 }
 
 function rewards(){
@@ -556,6 +560,7 @@ function bind(){
   q('[data-pm-fragprice]').forEach(x=>x.onclick=fragPriceForm);
   q('#view [data-pm-new-reward]').forEach(x=>x.onclick=()=>rewardForm(null));
   q('#view [data-pm-edit-reward]').forEach(x=>x.onclick=()=>rewardForm(S().rewards.find(r=>r.id===x.dataset.pmEditReward)));
+  q('[data-pm-fav]').forEach(x=>x.onclick=e=>{e.stopPropagation();const s=S();s.favReward=s.favReward===x.dataset.pmFav?'':x.dataset.pmFav;commit();Y.toast(s.favReward?'❤ Kedvenc beállítva – dupla esély':'Kedvenc levéve')});
   q('#view [data-pm-del-reward]').forEach(x=>x.onclick=()=>{if(!confirm('Törlöd az ajándékot?'))return;S().rewards=S().rewards.filter(r=>r.id!==x.dataset.pmDelReward);commit()});
   const p=project();if(!p)return;
   q('[data-pm-toggle-single]').forEach(x=>x.onclick=()=>{single=!useSingle();Y.render()});
