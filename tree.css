@@ -61,3 +61,15 @@
 .tree-row-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
 .tree-row-foot .tree-status{margin:0;flex:1;min-width:140px}
 .tree-ticks button{padding:6px 10px;font-size:14px;line-height:1}
+.streak-tiers{display:flex;flex-direction:column;gap:6px}
+.streak-tier{display:flex;align-items:center;gap:10px;font-size:13px;opacity:.7}
+.streak-tier.reached{opacity:1}
+.streak-tier.got{opacity:.85}
+.streak-days{width:56px;font-weight:800;color:var(--muted)}
+.streak-tier.reached .streak-days{color:var(--green)}
+.streak-bar{height:8px;border-radius:999px;background:#e7eee4;overflow:hidden}
+.streak-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--green),#8fba83)}
+.dice{margin:12px auto 0;width:76px;height:76px;border-radius:16px;background:#fff;border:3px solid var(--green);font-size:38px;font-weight:900;display:flex;align-items:center;justify-content:center;color:var(--ink);box-shadow:var(--shadow);transition:transform .07s}
+.dice.win{border-color:#e0b04a;background:#fff4d6;color:#8a5a00;animation:dice-pop .6s ease}
+.dice.lose{border-color:var(--line);color:var(--muted)}
+@keyframes dice-pop{0%{transform:scale(1)}40%{transform:scale(1.35) rotate(8deg)}100%{transform:scale(1)}}

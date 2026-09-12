@@ -15,7 +15,7 @@ function prio(){
 function results(){
   const s=Y.state(),kesz=s.milestones.filter(m=>m.completedAt).length,fogadalom=s.vows.length;
   const R=s.rewards||[],unlocked=R.filter(r=>r.unlockedAt).length,frag=R.filter(r=>!r.unlockedAt).reduce((n,r)=>n+r.collected,0);
-  return Y.top('Eredmények','Amit elértél, és amit kiérdemeltél.')+`<div class="grid g3">${card('progress','🏆','Fejlődés','Mérföldkövek, teljesítmények, fogadalmak és XP-szintek.','Kész mérföldkő · fogadalom',`${kesz} · ${fogadalom}`)}${card('pmapRewards','🎁','Ajándékok','A közös ajándék-pool: mozaikok, fregmentek, feloldott jutalmak.','Feloldva · gyűjtött fregment',`${unlocked} / ${R.length} · ${frag}`)}</div>`;
+  return Y.top('Eredmények','Amit elértél, és amit kiérdemeltél.')+`<div class="grid g3">${card('progress','🏆','Fejlődés','Mérföldkövek, teljesítmények, fogadalmak és XP-szintek.','Kész mérföldkő · fogadalom',`${kesz} · ${fogadalom}`)}${card('pmapRewards','🎁','Ajándékok','A közös ajándék-pool: mozaikok, darabkák, feloldott jutalmak.','Feloldva · gyűjtött darabka',`${unlocked} / ${R.length} · ${frag}`)}</div>`;
 }
 
 return{init,prio,results};
