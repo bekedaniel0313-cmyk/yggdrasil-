@@ -73,3 +73,6 @@
 .dice.win{border-color:#e0b04a;background:#fff4d6;color:#8a5a00;animation:dice-pop .6s ease}
 .dice.lose{border-color:var(--line);color:var(--muted)}
 @keyframes dice-pop{0%{transform:scale(1)}40%{transform:scale(1.35) rotate(8deg)}100%{transform:scale(1)}}
+.streak-mark{width:18px;text-align:center;font-weight:900;font-size:14px}
+.streak-mark.ok{color:var(--green)}
+.streak-mark.bad{color:var(--danger)}
