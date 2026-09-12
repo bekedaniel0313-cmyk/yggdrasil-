@@ -122,5 +122,5 @@ function animate(sides,roll,won){
 function bind(){
   document.querySelectorAll('[data-streak-go]').forEach(b=>b.onclick=()=>Y.go('pmapRewards'));
 }
-return{init,migrate,card,bind,streak,runs,tierState,pending,pendingCount,pendingAll,claimFromSack,TIERS};
+return{init,migrate,card,bind,streak,runs,tierState,pending,pendingCount,pendingAll,claimFromSack,animate,TIERS};
 })();

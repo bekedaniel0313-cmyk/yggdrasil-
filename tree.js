@@ -7,6 +7,7 @@ const S=()=>Y.state();
 
 function init(bridge){Y=bridge}
 function migrate(s){
+  s.treeAwards=s.treeAwards&&typeof s.treeAwards==='object'?s.treeAwards:{};
   s.tree=s.tree||{};
   s.tree.levels=Array.isArray(s.tree.levels)?s.tree.levels.slice(0,6).map(x=>x||''):[];
   while(s.tree.levels.length<6)s.tree.levels.push('');
@@ -32,6 +33,19 @@ function levels(date){
   });
 }
 function activeCount(){return levels().filter(l=>l.active).length}
+// daily reward: 4 living levels → D6, 5 → D4, 6 → D2; must be claimed the same day
+function dailyTier(){const n=activeCount();return{n,dice:n>=6?2:n>=5?4:n>=4?6:0}}
+function pendingToday(){const d=dailyTier(),got=S().treeAwards[Y.today()];return d.dice&&!got?d:null}
+let rolling=false;
+async function claimToday(){
+  const t=Y.today(),d=pendingToday();if(!d||rolling)return false;rolling=true;
+  const roll=1+Math.floor(Math.random()*d.dice),won=roll===d.dice;
+  await STREAK.animate(d.dice,roll,won);rolling=false;
+  S().treeAwards[t]={n:d.n,dice:d.dice,roll,won};
+  if(won){PMAP.openGift(1,`🌳 Yggdrasil · ${d.n}/6 szint (${t})`,{silent:true});Y.toast('🧩 +1 darabka a zsákba')}
+  else Y.toast(`🎲 ${roll} – ma nem jött össze.`);
+  Y.save();return true;
+}
 
 function stage(lv,cls=''){
   const slices=lv.map(l=>{const top=BOUNDS[5-l.i]*100,bottom=Math.max(0,(1-BOUNDS[6-l.i])*100-(l.i>0?.4:0));return`<img class="tree-slice ${l.active?'on':''}" src="fa-eles.jpg" alt="" style="clip-path:inset(${top}% 0 ${bottom}% 0)">`}).join('');
@@ -89,7 +103,9 @@ function view(){
     return'';
   };
   const rows=[...lv].reverse().map(l=>`<div class="tree-row ${l.active?'active':l.done?'done':''}"><div class="tree-badge">${l.i+1}</div><div class="grow"><div class="tree-row-head"><b>${NAMES[l.i]}</b><span class="chip">${l.active?'él':l.done?'kész, vár':(l.h||l.c)?'hiányzik':'üres'}</span></div><select data-tree-level="${l.i}">${habitOptions(S().tree.levels[l.i])}</select><div class="tree-row-foot"><p class="tree-status">${progressText(l)}</p>${ticks(l)}</div></div></div>`).join('');
-  return Y.top('🌳 Yggdrasil',`Minden szint egy szokás vagy egy kategória célja. A fa alulról felfelé kel életre: egy szint csak akkor világít, ha a célja teljesült <i>és</i> az alatta lévő szint is él. Ma ${n} / 6 szint él.`)+
+  const d=dailyTier(),got=S().treeAwards[Y.today()];
+  const reward=got?`<span class="chip">🎲 mai dobás: ${got.roll}/${got.dice}${got.won?' · +1 darabka':' · semmi'}</span>`:d.dice?`<span class="chip" style="background:#fff4d6;color:#8a5a00">🎲 ma D${d.dice} jár – beváltás a 🧩 Darabkáknál</span>`:`<span class="chip">🎲 4 élő szinttől D6, 5-től D4, 6-tól D2 – csak aznap váltható be</span>`;
+  return Y.top('🌳 Yggdrasil',`Minden szint egy szokás vagy egy kategória célja. A fa alulról felfelé kel életre: egy szint csak akkor világít, ha a célja teljesült <i>és</i> az alatta lévő szint is él. Ma ${n} / 6 szint él. ${reward}`)+
   `<div class="tree-wrap">${stage(lv)}<div class="tree-right"><div class="card tree-levels">${rows}<p class="vow-note" style="margin:10px 0 0">A sorrend számít: az 1. szint (gyökér) a legfontosabb szokásod legyen – ha az kimarad, az egész fa halvány marad.</p></div>${calendar()}</div></div>`;
 }
 
@@ -106,5 +122,5 @@ function bind(){
   document.querySelectorAll('[data-tree-cal]').forEach(b=>b.onclick=()=>{const cur=calCur||new Date(Y.today()+'T12:00:00');calCur=new Date(cur.getFullYear(),cur.getMonth()+Number(b.dataset.treeCal),1,12);Y.render()});
 }
 
-return{init,migrate,view,bind,activeCount};
+return{init,migrate,view,bind,activeCount,dailyTier,pendingToday,claimToday};
 })();
