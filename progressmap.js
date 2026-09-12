@@ -309,7 +309,7 @@ function rollOutcome(){
   if(x<1)return{n:3,text:'💥 Hármas! 3 darabka'};
   if(x<2)return{n:0,text:'💨 Üres… semmi'};
   if(x<7)return{n:2,text:'✨ Dupla! 2 darabka'};
-  if(x<12){const heads=Math.random()<.5;return{n:heads?1:0,text:heads?'🪙 Fej – 1 darabka':'🪙 Írás – semmi'}}
+  if(x<12){const heads=Math.random()<.5;if(window.STREAK)STREAK.logDice({source:'coin',dice:2,roll:heads?2:1,won:heads});return{n:heads?1:0,text:heads?'🪙 Fej – 1 darabka':'🪙 Írás – semmi'}}
   return{n:1,text:'1 darabka'};
 }
 function giveTo(r){r.collected++;const won=r.collected>=r.fragments;if(won)r.unlockedAt=Y.today();return won}
@@ -342,7 +342,7 @@ function sackModal(){
       res.innerHTML='';out.textContent='';box.className='sack-box shake';
       await new Promise(r=>setTimeout(r,900));
       S().darabkak=unopened()-1;Y.$('sackN').textContent=unopened();
-      const o=rollOutcome();out.textContent=o.text;
+      const o=rollOutcome();out.textContent=o.text;if(window.STREAK)STREAK.logDice({source:'sack',outcome:o.n,text:o.text});
       box.className='sack-box open';box.textContent=o.n?'🧩':'💨';
       const got=[];
       for(let i=0;i<o.n;i++){

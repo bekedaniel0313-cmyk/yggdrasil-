@@ -9,7 +9,9 @@ const TIERS=[
   {days:3,dice:6},{days:7,dice:4},{days:14,dice:2},{days:28,fixed:1},
   {days:60,fixed:1,dice:2},{days:90,fixed:2},{days:180,fixed:3},{days:365,fixed:5}
 ];
-function migrate(s){s.streakAwards=s.streakAwards&&typeof s.streakAwards==='object'?s.streakAwards:{}}
+function migrate(s){s.streakAwards=s.streakAwards&&typeof s.streakAwards==='object'?s.streakAwards:{};s.diceLog=Array.isArray(s.diceLog)?s.diceLog:[]}
+// every roll (tree, streak, sack) lands here for later statistics; not shown yet
+function logDice(rec){const s=S();s.diceLog=Array.isArray(s.diceLog)?s.diceLog:[];s.diceLog.push(Object.assign({at:new Date().toISOString()},rec));if(s.diceLog.length>2000)s.diceLog=s.diceLog.slice(-2000)}
 // earliest day worth scanning: the first log of the habit or its creation date,
 // whichever is earlier (backfilled logs may predate createdAt)
 const firstMemo={};
@@ -100,6 +102,7 @@ async function claim(h,tier,kind,silent){
     await animate(tier.dice,roll,won);
     rolling=false;
     rec.dice=tier.dice;rec.roll=roll;rec.won=won;
+    logDice({source:'streak',habitId:h.id,habit:h.name,days:tier.days,kind:kind||'',dice:tier.dice,roll,won});
     if(won)count++;
   }
   aw[k]=rec;
@@ -122,5 +125,5 @@ function animate(sides,roll,won){
 function bind(){
   document.querySelectorAll('[data-streak-go]').forEach(b=>b.onclick=()=>Y.go('pmapRewards'));
 }
-return{init,migrate,card,bind,streak,runs,tierState,pending,pendingCount,pendingAll,claimFromSack,animate,TIERS};
+return{init,migrate,card,bind,streak,runs,tierState,pending,pendingCount,pendingAll,claimFromSack,animate,logDice,TIERS};
 })();

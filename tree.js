@@ -42,6 +42,7 @@ async function claimToday(){
   const roll=1+Math.floor(Math.random()*d.dice),won=roll===d.dice;
   await STREAK.animate(d.dice,roll,won);rolling=false;
   S().treeAwards[t]={n:d.n,dice:d.dice,roll,won};
+  STREAK.logDice({source:'tree',date:t,levels:d.n,dice:d.dice,roll,won});
   if(won){PMAP.openGift(1,`🌳 Yggdrasil · ${d.n}/6 szint (${t})`,{silent:true});Y.toast('🧩 +1 darabka a zsákba')}
   else Y.toast(`🎲 ${roll} – ma nem jött össze.`);
   Y.save();return true;
