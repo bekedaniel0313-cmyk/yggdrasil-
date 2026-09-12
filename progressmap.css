@@ -119,3 +119,7 @@
 .sack-pick-btn img{width:40px;height:40px;object-fit:cover;border-radius:8px;flex:none}
 .sack-pick-btn b{display:block;font-size:13px}
 .sack-pick-btn small{color:var(--muted);font-size:11px}
+.sack-pend{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.sack-pend-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.sack-pend-row b{font-size:13px;display:block}
+.sack-pend-row small{color:var(--muted);font-size:11px}

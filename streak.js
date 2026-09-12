@@ -10,6 +10,19 @@ const TIERS=[
   {days:60,fixed:1,dice:2},{days:90,fixed:2},{days:180,fixed:3},{days:365,fixed:5}
 ];
 function migrate(s){s.streakAwards=s.streakAwards&&typeof s.streakAwards==='object'?s.streakAwards:{}}
+// earliest day worth scanning: the first log of the habit or its creation date,
+// whichever is earlier (backfilled logs may predate createdAt)
+const firstMemo={};
+function firstDay(h,t){
+  const logs=S().logs||{},n=Object.keys(logs).length,m=firstMemo[h.id];
+  if(m&&m.n===n)return m.from;
+  let from=h.createdAt&&h.createdAt<t?h.createdAt:t;
+  const pre=h.id+'|';
+  for(const k in logs){if(k.startsWith(pre)){const d=k.slice(pre.length);if(d<from)from=d}}
+  if(from<shift(t,-800))from=shift(t,-800);
+  firstMemo[h.id]={n,from};
+  return from;
+}
 function shift(iso,d){const x=new Date(iso+'T12:00:00');x.setDate(x.getDate()+d);return x.toLocaleDateString('sv-SE')}
 
 // Consecutive completed periods, oldest first, as {days,start}; the last one is the
@@ -18,7 +31,7 @@ function shift(iso,d){const x=new Date(iso+'T12:00:00');x.setDate(x.getDate()+d)
 function runs(h){
   const t=Y.today(),out=[];
   if(h.period==='day'){
-    const from=h.createdAt&&h.createdAt<t?h.createdAt:shift(t,-800);
+    const from=firstDay(h,t);
     let cur=null,d=from;
     for(let guard=0;d<=t&&guard<900;guard++,d=shift(d,1)){
       if(Y.complete(h,d)){if(!cur)cur={days:0,start:d};cur.days++}
@@ -62,7 +75,7 @@ function pendingCount(){return S().habits.reduce((n,h)=>n+pending(h).length,0)}
 
 function tierLabel(t){return t.fixed?`${t.fixed} darabka${t.dice?` + D${t.dice}`:''}`:`D${t.dice}`}
 function gotChip(got){return`<span class="chip">${got.roll?`🎲 ${got.roll}/${got.dice} ${got.won?'· +1 darabka':'· semmi'}`:''}${got.fixed?` 🎁 +${got.fixed}`:''}</span>`}
-function claimBtn(h,t,kind){return`<button class="btn primary small" data-streak-claim="${h.id}|${t.days}|${kind}">${kind?'🔁 ':''}${t.fixed?`🎁 +${t.fixed} darabka`:''}${t.dice?` 🎲 D${t.dice}`:''}</button>`}
+function claimBtn(h,t,kind){return`<button class="btn small" data-streak-go title="Beváltás a 🧩 Darabkáknál">${kind?'🔁 ':''}${t.fixed?`🎁 +${t.fixed}`:''}${t.dice?` 🎲 D${t.dice}`:''} → 🧩</button>`}
 function card(h){
   const st=streak(h),aw=S().streakAwards;
   const rows=TIERS.map(t=>{
@@ -73,13 +86,13 @@ function card(h){
     if(ts.restartNow)right+=gotR?`<span class="chip" title="Újrakezdés">🔁 ${gotR.roll?`${gotR.roll}/${gotR.dice}${gotR.won?' +1':''}`:''}${gotR.fixed?` +${gotR.fixed}`:''}</span>`:claimBtn(h,t,'restart');
     return`<div class="streak-tier ${ts.reachedNow?'reached':''} ${got?'got':''}"><span class="streak-days">${t.days>=365?'1 év':t.days+' nap'}</span>${mark}<span class="grow streak-bar"><i style="width:${Math.min(100,Math.round(st.days/t.days*100))}%"></i></span>${right}</div>`;
   }).join('');
-  return`<div class="section" style="margin:0 0 8px"><p class="cal-edit-hint" style="margin:0">🔥 Konzisztens</p><span class="chip">${st.days} nap${st.start?` · ${st.start} óta`:''}</span></div><div class="streak-tiers">${rows}</div><div id="dice" class="dice" style="display:none"></div><p class="vow-note" style="margin:8px 0 16px">A kockás fokozatoknál csak a legnagyobb dobás ad darabkát; minden fokozat egyszer váltható be sorozatonként. ✓ = a fokozat áll, ✗ = egy kihagyás utáni rövid sorozat elvesztette. <b>Újrakezdés</b> (🔁): ha egy álló fokozatot kihagyás után újra elérsz, ugyanaz a jutalom jár még egyszer – de ha a következő sorozat nem éri el, a pipa elvész.</p>`;
+  return`<div class="section" style="margin:0 0 8px"><p class="cal-edit-hint" style="margin:0">🔥 Konzisztens</p><span class="chip">${st.days} nap${st.start?` · ${st.start} óta`:''}</span></div><div class="streak-tiers">${rows}</div><p class="vow-note" style="margin:8px 0 16px">A beváltás – a kockadobás is – az Eredmények › Ajándékok › 🧩 Darabkák ablakban történik. A kockás fokozatoknál csak a legnagyobb dobás ad darabkát; minden fokozat egyszer váltható be sorozatonként. ✓ = a fokozat áll, ✗ = egy kihagyás utáni rövid sorozat elvesztette. <b>Újrakezdés</b> (🔁): ha egy álló fokozatot kihagyás után újra elérsz, ugyanaz a jutalom jár még egyszer – de ha a következő sorozat nem éri el, a pipa elvész.</p>`;
 }
 
-async function claim(h,tier,kind){
-  if(rolling)return;
+async function claim(h,tier,kind,silent){
+  if(rolling)return false;
   const ts=tierState(h,tier),k=key(h,tier,ts.cur,kind),aw=S().streakAwards;
-  if(aw[k]||!ts.reachedNow||(kind&&!ts.restartNow))return;
+  if(aw[k]||!ts.reachedNow||(kind&&!ts.restartNow))return false;
   let count=tier.fixed||0,rec={date:Y.today(),fixed:tier.fixed||0};
   if(tier.dice){
     rolling=true;
@@ -91,12 +104,13 @@ async function claim(h,tier,kind){
   }
   aw[k]=rec;
   const label=`${h.emoji||''} ${h.name} · ${tier.days>=365?'1 éves':tier.days+' napos'} konzisztencia${kind?' – újrakezdés':''}`;
-  if(count){
-    const ok=PMAP.openGift(count,label);
-    if(!ok)Y.toast('Darabka járt volna, de üres az ajándék-pool – vegyél fel ajándékot az Eredmények alatt.');
-  } else Y.toast(`🎲 ${rec.roll} – most nem jött össze. A ${tier.days} napos fokozat elkönyvelve.`);
-  Y.save();Y.render();
+  if(count){PMAP.openGift(count,label,{silent:!!silent});if(silent)Y.toast(`🧩 +${count} darabka a zsákba`)}
+  else Y.toast(`🎲 ${rec.roll} – most nem jött össze. A ${tier.days} napos fokozat elkönyvelve.`);
+  Y.save();if(!silent)Y.render();
+  return true;
 }
+function pendingAll(){const out=[];S().habits.forEach(h=>pending(h).forEach(p=>out.push({h,t:p.t,kind:p.kind})));return out}
+async function claimFromSack(hid,days,kind){const h=S().habits.find(x=>x.id===hid),t=TIERS.find(x=>x.days===days);if(!h||!t)return false;return claim(h,t,kind,true)}
 function animate(sides,roll,won){
   const el=document.getElementById('dice');if(!el)return Promise.resolve();
   el.style.display='flex';el.className='dice rolling';
@@ -106,7 +120,7 @@ function animate(sides,roll,won){
   });
 }
 function bind(){
-  document.querySelectorAll('[data-streak-claim]').forEach(b=>b.onclick=()=>{const[hid,days,kind]=b.dataset.streakClaim.split('|');const h=S().habits.find(x=>x.id===hid),t=TIERS.find(x=>x.days===Number(days));if(h&&t)claim(h,t,kind||'')});
+  document.querySelectorAll('[data-streak-go]').forEach(b=>b.onclick=()=>Y.go('pmapRewards'));
 }
-return{init,migrate,card,bind,streak,runs,tierState,pending,pendingCount,TIERS};
+return{init,migrate,card,bind,streak,runs,tierState,pending,pendingCount,pendingAll,claimFromSack,TIERS};
 })();

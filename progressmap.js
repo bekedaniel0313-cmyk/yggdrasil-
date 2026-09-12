@@ -291,13 +291,14 @@ function draw(count){
   }
   return{drops,unlocks};
 }
-function openGift(count,label){
+function openGift(count,label,opts){
   // darabkák land in the sack first; the reward they belong to is revealed when the
   // user opens them one by one on the Ajándékok page (loot-box style)
   const n=Math.max(0,Math.round(Number(count)||0));if(!n)return false;
   const s=S();s.darabkak=(Number(s.darabkak)||0)+n;
   s.rewardLog.unshift({date:Y.today(),text:`${label}: +${n} darabka a zsákba`});
   s.rewardLog=s.rewardLog.slice(0,80);
+  if(opts&&opts.silent){Y.save();return true}
   modal('🎁 Ajándékcsomag',`<p class="vow-note" style="margin:0 0 10px">${esc(label)}</p><div class="pm-drop">🧩 <b>+${n} darabka</b> került a zsákba · összesen ${s.darabkak} bontatlan</div><div class="modalactions"><button class="btn primary" id="pmOpenNow">Kibontás most</button><button class="btn" data-close="pmapModal" id="pmOk">Később</button></div>`,()=>{Y.$('pmOk').onclick=close;Y.$('pmOpenNow').onclick=()=>{close();rewardsPanel();setTimeout(()=>sackModal(),50)}});
   return true;
 }
@@ -326,9 +327,12 @@ function pickReward(){
 }
 function sackModal(){
   const s=S(),n=unopened(),pool=poolOpen();
-  const body=`<div class="sack"><div class="sack-box" id="sackBox">🧳</div><div class="sack-count"><b id="sackN">${n}</b> bontatlan darabka</div><div id="sackOutcome" class="sack-outcome"></div><div id="sackResult"></div></div><p class="vow-note" style="margin:8px 0 0">Egy kibontás: 88% 1 darabka · 5% dupla · 5% pénzfeldobás · 1% hármas · 1% üres. Minden darabka 15% eséllyel <b>joker</b>: azt te teszed oda, ahova akarod. ${pool.length?`${pool.length} ajándék várja.`:'<b>Nincs hiányos ajándék a poolban</b> – vegyél fel újat, a darabkák megmaradnak.'}</p><div class="modalactions"><button class="btn" data-close="pmapModal" id="sackClose">Bezárás</button><button class="btn primary" id="sackOpen" ${n&&pool.length?'':'disabled'}>🎁 Bonts ki egyet</button></div>`;
+  const pend=window.STREAK?STREAK.pendingAll():[];
+  const pendHtml=pend.length?`<div class="sack-pend"><p class="cal-edit-hint" style="margin:0 0 6px">🔥 Beváltható konzisztencia-jutalmak</p>${pend.map(x=>`<div class="sack-pend-row"><span class="grow"><b>${esc(x.h.emoji||'')} ${esc(x.h.name)}</b><small>${x.t.days>=365?'1 év':x.t.days+' nap'}${x.kind?' · 🔁 újrakezdés':''}</small></span><button type="button" class="btn primary small" data-sack-claim="${x.h.id}|${x.t.days}|${x.kind}">${x.t.fixed?`🎁 +${x.t.fixed}`:''}${x.t.dice?` 🎲 D${x.t.dice}`:''}</button></div>`).join('')}<div id="dice" class="dice" style="display:none"></div></div>`:'';
+  const body=`${pendHtml}<div class="sack"><div class="sack-box" id="sackBox">🧳</div><div class="sack-count"><b id="sackN">${n}</b> bontatlan darabka</div><div id="sackOutcome" class="sack-outcome"></div><div id="sackResult"></div></div><p class="vow-note" style="margin:8px 0 0">Egy kibontás: 88% 1 darabka · 5% dupla · 5% pénzfeldobás · 1% hármas · 1% üres. Minden darabka 15% eséllyel <b>joker</b>: azt te teszed oda, ahova akarod. ${pool.length?`${pool.length} ajándék várja.`:'<b>Nincs hiányos ajándék a poolban</b> – vegyél fel újat, a darabkák megmaradnak.'}</p><div class="modalactions"><button class="btn" data-close="pmapModal" id="sackClose">Bezárás</button><button class="btn primary" id="sackOpen" ${n&&pool.length?'':'disabled'}>🎁 Bonts ki egyet</button></div>`;
   modal('🧩 Darabkák',body,()=>{
     Y.$('sackClose').onclick=close;
+    document.querySelectorAll('[data-sack-claim]').forEach(b=>b.onclick=async()=>{const[hid,days,kind]=b.dataset.sackClaim.split('|');b.disabled=true;const ok=await STREAK.claimFromSack(hid,Number(days),kind||'');if(ok!==false)sackModal()});
     Y.$('sackOpen').onclick=async()=>{
       const btn=Y.$('sackOpen');if(btn.disabled||unopened()<1||!poolOpen().length)return;btn.disabled=true;
       const box=Y.$('sackBox'),res=Y.$('sackResult'),out=Y.$('sackOutcome');
@@ -376,7 +380,7 @@ function rewards(){
   const R=S().rewards,log=S().rewardLog;
   const open=R.filter(r=>!r.unlockedAt),done=R.filter(r=>r.unlockedAt);
   const card=r=>`<div class="card pm-rcard ${r.unlockedAt?'unlocked':''}">${mosaic(r)}<div class="pm-rbody"><h4>${r.unlockedAt?'✨ ':''}${esc(r.name)}</h4><div class="chips">${r.price?`<span class="chip">${r.price.toLocaleString('hu-HU')} Ft</span>`:''}<span class="chip">${r.unlockedAt?'feloldva · '+r.unlockedAt:`${r.collected} / ${r.fragments} darabka`}</span></div>${r.unlockedAt?'':`<div class="bar"><i style="width:${Math.round(r.collected/r.fragments*100)}%"></i></div>`}<div class="actions" style="margin-top:8px"><button class="btn small" data-pm-edit-reward="${r.id}">✏️</button><button class="btn small" data-pm-del-reward="${r.id}">🗑️</button></div></div></div>`;
-  return Y.top('🎁 Ajándékok',`Egy darabka = ${fragPrice().toLocaleString('hu-HU')} Ft. A térképek ajándékcsomagjai véletlen darabkákat adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány darabka kell hozzá.`,`<button class="btn" data-go="results">← Eredmények</button><button class="btn" data-pm-fragprice title="Darabka ára">⚙️ ${fragPrice().toLocaleString('hu-HU')} Ft</button><button class="btn" data-pm-sack>🧩 Darabkák${unopened()?` <span class="chip" style="background:#fff4d6;color:#8a5a00">${unopened()}</span>`:''}</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
+  return Y.top('🎁 Ajándékok',`Egy darabka = ${fragPrice().toLocaleString('hu-HU')} Ft. A térképek ajándékcsomagjai véletlen darabkákat adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány darabka kell hozzá.`,`<button class="btn" data-go="results">← Eredmények</button><button class="btn" data-pm-fragprice title="Darabka ára">⚙️ ${fragPrice().toLocaleString('hu-HU')} Ft</button><button class="btn" data-pm-sack>🧩 Darabkák${(unopened()+(window.STREAK?STREAK.pendingCount():0))?` <span class="chip" style="background:#fff4d6;color:#8a5a00">${unopened()}${window.STREAK&&STREAK.pendingCount()?` · 🔥${STREAK.pendingCount()}`:''}</span>`:''}</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
   (open.length?`<div class="grid g3 pm-rgrid">${open.map(card).join('')}</div>`:'<div class="card empty">Még nincs ajándék a poolban – vedd fel, mit szeretnél nyerni.</div>')+
   (done.length?`<h3 style="margin:22px 0 10px">✨ Feloldott</h3><div class="grid g3 pm-rgrid">${done.map(card).join('')}</div>`:'')+
   (log.length?`<div class="card" style="margin-top:20px"><h3 style="margin:0 0 8px">Húzások</h3>${log.slice(0,12).map(l=>`<p class="pm-log">${l.date} · ${esc(l.text)}</p>`).join('')}</div>`:'');
