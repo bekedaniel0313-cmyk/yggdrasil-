@@ -9,7 +9,7 @@ function init(bridge){Y=bridge}
 
 function migrate(s){
   s.pmaps=s.pmaps||[];
-  s.rewards=s.rewards||[];s.rewardLog=s.rewardLog||[];
+  s.rewards=s.rewards||[];s.rewardLog=s.rewardLog||[];s.darabkak=Number(s.darabkak)||0;
   s.pmaps.forEach(p=>{
     p.emoji=p.emoji||'🗺️';
     p.description=p.description||'';
@@ -292,15 +292,37 @@ function draw(count){
   return{drops,unlocks};
 }
 function openGift(count,label){
-  if(!S().rewards.some(r=>!r.unlockedAt))return Y.toast('Üres az ajándék-pool – az Eredmények › Ajándékok oldalon vedd fel, mit szeretnél nyerni.')&&false;
-  const{drops,unlocks}=draw(count);
-  const grouped={};drops.forEach(r=>{grouped[r.id]=grouped[r.id]||{r,n:0};grouped[r.id].n++});
-  const lines=Object.values(grouped).map(({r,n})=>`<div class="pm-drop">🧩 ${n}× darabka → <b>${esc(r.name)}</b> <span class="chip">${r.collected}/${r.fragments}</span></div>`).join('');
-  const un=unlocks.map(r=>`<div class="pm-drop unlock">✨ Feloldva: ${esc(r.name)}${r.price?` · ${r.price.toLocaleString('hu-HU')} Ft`:''}</div>`).join('');
-  S().rewardLog.unshift({date:Y.today(),text:`${label}: ${drops.length} darabka${unlocks.length?' · feloldva: '+unlocks.map(r=>r.name).join(', '):''}`});
-  S().rewardLog=S().rewardLog.slice(0,80);
-  modal('🎁 Ajándékcsomag',`<p class="vow-note" style="margin:0 0 10px">${esc(label)}</p>${lines||'<div class="pm-drop">A pool kiürült, nem maradt húzható darabka.</div>'}${un}<div class="modalactions"><button class="btn" data-pm-rewards>Ajándékok</button><button class="btn primary" data-close="pmapModal" id="pmOk">Rendben</button></div>`,()=>{Y.$('pmOk').onclick=close;const b=document.querySelector('#pmapModalBody [data-pm-rewards]');if(b)b.onclick=()=>{close();rewardsPanel()}});
+  // darabkák land in the sack first; the reward they belong to is revealed when the
+  // user opens them one by one on the Ajándékok page (loot-box style)
+  const n=Math.max(0,Math.round(Number(count)||0));if(!n)return false;
+  const s=S();s.darabkak=(Number(s.darabkak)||0)+n;
+  s.rewardLog.unshift({date:Y.today(),text:`${label}: +${n} darabka a zsákba`});
+  s.rewardLog=s.rewardLog.slice(0,80);
+  modal('🎁 Ajándékcsomag',`<p class="vow-note" style="margin:0 0 10px">${esc(label)}</p><div class="pm-drop">🧩 <b>+${n} darabka</b> került a zsákba · összesen ${s.darabkak} bontatlan</div><div class="modalactions"><button class="btn primary" id="pmOpenNow">Kibontás most</button><button class="btn" data-close="pmapModal" id="pmOk">Később</button></div>`,()=>{Y.$('pmOk').onclick=close;Y.$('pmOpenNow').onclick=()=>{close();rewardsPanel();setTimeout(()=>sackModal(),50)}});
   return true;
+}
+function unopened(){return Number(S().darabkak)||0}
+function sackModal(){
+  const s=S(),n=unopened(),pool=s.rewards.filter(r=>!r.unlockedAt&&r.collected<r.fragments);
+  const body=`<div class="sack"><div class="sack-box" id="sackBox">🧳</div><div class="sack-count"><b id="sackN">${n}</b> bontatlan darabka</div><div id="sackResult"></div></div><p class="vow-note" style="margin:8px 0 0">Egy kibontás egy véletlen, még hiányos ajándékhoz ad egy darabkát. ${pool.length?`${pool.length} ajándék várja.`:'<b>Nincs hiányos ajándék a poolban</b> – vegyél fel újat, a darabkák megmaradnak.'}</p><div class="modalactions"><button class="btn" data-close="pmapModal" id="sackClose">Bezárás</button><button class="btn primary" id="sackOpen" ${n&&pool.length?'':'disabled'}>🎁 Bonts ki egyet</button></div>`;
+  modal('🧩 Darabkák',body,()=>{
+    Y.$('sackClose').onclick=close;
+    Y.$('sackOpen').onclick=async()=>{
+      const btn=Y.$('sackOpen');if(btn.disabled||unopened()<1)return;btn.disabled=true;
+      const box=Y.$('sackBox'),res=Y.$('sackResult');
+      res.innerHTML='';box.className='sack-box shake';
+      await new Promise(r=>setTimeout(r,900));
+      const{drops,unlocks}=draw(1);
+      if(!drops.length){box.className='sack-box';btn.disabled=false;return Y.toast('Nincs hiányos ajándék.')}
+      S().darabkak=unopened()-1;const r=drops[0],won=unlocks.includes(r);
+      S().rewardLog.unshift({date:Y.today(),text:`Kibontás: darabka → ${r.name} (${r.collected}/${r.fragments})${won?' · feloldva':''}`});
+      box.className='sack-box open';box.textContent=won?'✨':'🧩';
+      res.innerHTML=`<div class="sack-reveal ${won?'win':''}"><div class="sack-img">${r.image?`<img src="${esc(r.image)}" alt="">`:'🎁'}</div><div><b>${esc(r.name)}</b><div class="chip" style="margin-top:4px">${r.collected} / ${r.fragments} darabka</div>${won?'<div class="pm-drop unlock" style="margin:8px 0 0">✨ Feloldva!</div>':''}</div></div>`;
+      Y.$('sackN').textContent=unopened();
+      Y.save();
+      setTimeout(()=>{box.className='sack-box';box.textContent='🧳';btn.disabled=!(unopened()&&S().rewards.some(x=>!x.unlockedAt&&x.collected<x.fragments))},900);
+    };
+  });
 }
 
 function rewardsPanel(){Y.show('pmapRewards')}
@@ -363,7 +385,7 @@ function rewards(){
   const R=S().rewards,log=S().rewardLog;
   const open=R.filter(r=>!r.unlockedAt),done=R.filter(r=>r.unlockedAt);
   const card=r=>`<div class="card pm-rcard ${r.unlockedAt?'unlocked':''}">${mosaic(r)}<div class="pm-rbody"><h4>${r.unlockedAt?'✨ ':''}${esc(r.name)}</h4><div class="chips">${r.price?`<span class="chip">${r.price.toLocaleString('hu-HU')} Ft</span>`:''}<span class="chip">${r.unlockedAt?'feloldva · '+r.unlockedAt:`${r.collected} / ${r.fragments} darabka`}</span></div>${r.unlockedAt?'':`<div class="bar"><i style="width:${Math.round(r.collected/r.fragments*100)}%"></i></div>`}<div class="actions" style="margin-top:8px"><button class="btn small" data-pm-edit-reward="${r.id}">✏️</button><button class="btn small" data-pm-del-reward="${r.id}">🗑️</button></div></div></div>`;
-  return Y.top('🎁 Ajándékok',`Egy darabka = ${fragPrice().toLocaleString('hu-HU')} Ft. A térképek ajándékcsomagjai véletlen darabkákat adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány darabka kell hozzá.`,`<button class="btn" data-go="results">← Eredmények</button><button class="btn" data-pm-fragprice title="Darabka ára">⚙️ ${fragPrice().toLocaleString('hu-HU')} Ft</button><button class="btn" data-pm-catalog>📚 Katalógus</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
+  return Y.top('🎁 Ajándékok',`Egy darabka = ${fragPrice().toLocaleString('hu-HU')} Ft. A térképek ajándékcsomagjai véletlen darabkákat adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány darabka kell hozzá.`,`<button class="btn" data-go="results">← Eredmények</button><button class="btn" data-pm-fragprice title="Darabka ára">⚙️ ${fragPrice().toLocaleString('hu-HU')} Ft</button><button class="btn" data-pm-sack>🧩 Darabkák${unopened()?` <span class="chip" style="background:#fff4d6;color:#8a5a00">${unopened()}</span>`:''}</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
   (open.length?`<div class="grid g3 pm-rgrid">${open.map(card).join('')}</div>`:'<div class="card empty">Még nincs ajándék a poolban – vedd fel, mit szeretnél nyerni.</div>')+
   (done.length?`<h3 style="margin:22px 0 10px">✨ Feloldott</h3><div class="grid g3 pm-rgrid">${done.map(card).join('')}</div>`:'')+
   (log.length?`<div class="card" style="margin-top:20px"><h3 style="margin:0 0 8px">Húzások</h3>${log.slice(0,12).map(l=>`<p class="pm-log">${l.date} · ${esc(l.text)}</p>`).join('')}</div>`:'');
@@ -507,7 +529,7 @@ function bind(){
   q('[data-pm-edit-project]').forEach(x=>x.onclick=()=>projectForm(S().pmaps.find(p=>p.id===x.dataset.pmEditProject)));
   q('[data-pm-del-project]').forEach(x=>x.onclick=()=>deleteProject(x.dataset.pmDelProject));
   q('[data-pm-rewards]').forEach(x=>x.onclick=()=>rewardsPanel());
-  q('[data-pm-catalog]').forEach(x=>x.onclick=()=>catalogModal());
+  q('[data-pm-sack]').forEach(x=>x.onclick=()=>sackModal());
   q('[data-pm-fragprice]').forEach(x=>x.onclick=fragPriceForm);
   q('#view [data-pm-new-reward]').forEach(x=>x.onclick=()=>rewardForm(null));
   q('#view [data-pm-edit-reward]').forEach(x=>x.onclick=()=>rewardForm(S().rewards.find(r=>r.id===x.dataset.pmEditReward)));
@@ -531,5 +553,5 @@ function bind(){
   if(!resizeBound){resizeBound=true;window.addEventListener('resize',()=>{if(document.getElementById('pmDeps'))drawDeps()})}
 }
 
-return{init,migrate,leave,list,detail,rewards,bind,openGift};
+return{init,migrate,leave,list,detail,rewards,bind,openGift,unopened};
 })();
