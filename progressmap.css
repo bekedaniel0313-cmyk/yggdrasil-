@@ -112,3 +112,10 @@
 .sack-reveal.win{border-color:var(--green2);box-shadow:0 0 18px rgba(255,220,120,.5)}
 .sack-img{width:64px;height:64px;border-radius:12px;overflow:hidden;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:30px;flex:none}
 .sack-img img{width:100%;height:100%;object-fit:cover}
+.sack-outcome{font-weight:800;font-size:15px;min-height:20px}
+.sack-pick-list{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto}
+.sack-pick-btn{display:flex;align-items:center;gap:10px;text-align:left;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--panel);cursor:pointer;width:100%}
+.sack-pick-btn:hover{border-color:var(--green)}
+.sack-pick-btn img{width:40px;height:40px;object-fit:cover;border-radius:8px;flex:none}
+.sack-pick-btn b{display:block;font-size:13px}
+.sack-pick-btn small{color:var(--muted);font-size:11px}

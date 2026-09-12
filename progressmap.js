@@ -302,68 +302,59 @@ function openGift(count,label){
   return true;
 }
 function unopened(){return Number(S().darabkak)||0}
+// one sack darabka → how many reward-darabkák it yields
+function rollOutcome(){
+  const x=Math.random()*100;
+  if(x<1)return{n:3,text:'💥 Hármas! 3 darabka'};
+  if(x<2)return{n:0,text:'💨 Üres… semmi'};
+  if(x<7)return{n:2,text:'✨ Dupla! 2 darabka'};
+  if(x<12){const heads=Math.random()<.5;return{n:heads?1:0,text:heads?'🪙 Fej – 1 darabka':'🪙 Írás – semmi'}}
+  return{n:1,text:'1 darabka'};
+}
+function giveTo(r){r.collected++;const won=r.collected>=r.fragments;if(won)r.unlockedAt=Y.today();return won}
+function poolOpen(){return S().rewards.filter(r=>!r.unlockedAt&&r.collected<r.fragments)}
+function revealHtml(r,won,joker){return`<div class="sack-reveal ${won?'win':''}"><div class="sack-img">${r.image?`<img src="${esc(r.image)}" alt="">`:'🎁'}</div><div>${joker?'<span class="chip" style="background:#fff4d6;color:#8a5a00">🃏 joker</span> ':''}<b>${esc(r.name)}</b><div class="chip" style="margin-top:4px">${r.collected} / ${r.fragments} darabka</div>${won?'<div class="pm-drop unlock" style="margin:8px 0 0">✨ Feloldva!</div>':''}</div></div>`}
+function pickReward(){
+  return new Promise(res=>{
+    const res_=Y.$('sackResult');
+    const pool=poolOpen();
+    const el=document.createElement('div');el.className='sack-pick';
+    el.innerHTML=`<div class="pm-drop" style="margin:8px 0">🃏 <b>Joker darabka!</b> Válaszd ki, melyik ajándékhoz menjen:</div><div class="sack-pick-list">${pool.map(r=>`<button type="button" class="sack-pick-btn" data-pick="${r.id}">${r.image?`<img src="${esc(r.image)}" alt="">`:'<span class="sack-img" style="width:40px;height:40px;font-size:20px">🎁</span>'}<span><b>${esc(r.name)}</b><small>${r.collected} / ${r.fragments}</small></span></button>`).join('')}</div>`;
+    res_.appendChild(el);
+    el.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{const r=S().rewards.find(x=>x.id===b.dataset.pick);el.remove();res(r)});
+  });
+}
 function sackModal(){
-  const s=S(),n=unopened(),pool=s.rewards.filter(r=>!r.unlockedAt&&r.collected<r.fragments);
-  const body=`<div class="sack"><div class="sack-box" id="sackBox">🧳</div><div class="sack-count"><b id="sackN">${n}</b> bontatlan darabka</div><div id="sackResult"></div></div><p class="vow-note" style="margin:8px 0 0">Egy kibontás egy véletlen, még hiányos ajándékhoz ad egy darabkát. ${pool.length?`${pool.length} ajándék várja.`:'<b>Nincs hiányos ajándék a poolban</b> – vegyél fel újat, a darabkák megmaradnak.'}</p><div class="modalactions"><button class="btn" data-close="pmapModal" id="sackClose">Bezárás</button><button class="btn primary" id="sackOpen" ${n&&pool.length?'':'disabled'}>🎁 Bonts ki egyet</button></div>`;
+  const s=S(),n=unopened(),pool=poolOpen();
+  const body=`<div class="sack"><div class="sack-box" id="sackBox">🧳</div><div class="sack-count"><b id="sackN">${n}</b> bontatlan darabka</div><div id="sackOutcome" class="sack-outcome"></div><div id="sackResult"></div></div><p class="vow-note" style="margin:8px 0 0">Egy kibontás: 88% 1 darabka · 5% dupla · 5% pénzfeldobás · 1% hármas · 1% üres. Minden darabka 15% eséllyel <b>joker</b>: azt te teszed oda, ahova akarod. ${pool.length?`${pool.length} ajándék várja.`:'<b>Nincs hiányos ajándék a poolban</b> – vegyél fel újat, a darabkák megmaradnak.'}</p><div class="modalactions"><button class="btn" data-close="pmapModal" id="sackClose">Bezárás</button><button class="btn primary" id="sackOpen" ${n&&pool.length?'':'disabled'}>🎁 Bonts ki egyet</button></div>`;
   modal('🧩 Darabkák',body,()=>{
     Y.$('sackClose').onclick=close;
     Y.$('sackOpen').onclick=async()=>{
-      const btn=Y.$('sackOpen');if(btn.disabled||unopened()<1)return;btn.disabled=true;
-      const box=Y.$('sackBox'),res=Y.$('sackResult');
-      res.innerHTML='';box.className='sack-box shake';
+      const btn=Y.$('sackOpen');if(btn.disabled||unopened()<1||!poolOpen().length)return;btn.disabled=true;
+      const box=Y.$('sackBox'),res=Y.$('sackResult'),out=Y.$('sackOutcome');
+      res.innerHTML='';out.textContent='';box.className='sack-box shake';
       await new Promise(r=>setTimeout(r,900));
-      const{drops,unlocks}=draw(1);
-      if(!drops.length){box.className='sack-box';btn.disabled=false;return Y.toast('Nincs hiányos ajándék.')}
-      S().darabkak=unopened()-1;const r=drops[0],won=unlocks.includes(r);
-      S().rewardLog.unshift({date:Y.today(),text:`Kibontás: darabka → ${r.name} (${r.collected}/${r.fragments})${won?' · feloldva':''}`});
-      box.className='sack-box open';box.textContent=won?'✨':'🧩';
-      res.innerHTML=`<div class="sack-reveal ${won?'win':''}"><div class="sack-img">${r.image?`<img src="${esc(r.image)}" alt="">`:'🎁'}</div><div><b>${esc(r.name)}</b><div class="chip" style="margin-top:4px">${r.collected} / ${r.fragments} darabka</div>${won?'<div class="pm-drop unlock" style="margin:8px 0 0">✨ Feloldva!</div>':''}</div></div>`;
-      Y.$('sackN').textContent=unopened();
-      Y.save();
-      setTimeout(()=>{box.className='sack-box';box.textContent='🧳';btn.disabled=!(unopened()&&S().rewards.some(x=>!x.unlockedAt&&x.collected<x.fragments))},900);
+      S().darabkak=unopened()-1;Y.$('sackN').textContent=unopened();
+      const o=rollOutcome();out.textContent=o.text;
+      box.className='sack-box open';box.textContent=o.n?'🧩':'💨';
+      const got=[];
+      for(let i=0;i<o.n;i++){
+        if(!poolOpen().length)break;
+        const joker=Math.random()<.15;
+        let r;
+        if(joker){r=await pickReward()}else{const p=poolOpen();r=p[Math.floor(Math.random()*p.length)]}
+        const won=giveTo(r);got.push({r,won,joker,c:r.collected});
+        res.insertAdjacentHTML('beforeend',revealHtml(r,won,joker));
+        Y.save();
+      }
+      S().rewardLog.unshift({date:Y.today(),text:`Kibontás: ${o.text}${got.length?' → '+got.map(g=>`${g.joker?'🃏 ':''}${g.r.name} (${g.c}/${g.r.fragments})${g.won?' ✨':''}`).join(', '):''}`});
+      S().rewardLog=S().rewardLog.slice(0,80);Y.save();
+      setTimeout(()=>{box.className='sack-box';box.textContent='🧳';btn.disabled=!(unopened()&&poolOpen().length)},700);
     };
   });
 }
 
 function rewardsPanel(){Y.show('pmapRewards')}
-
-const REWARD_CATALOG=[
-  {name:'Take Time',image:'ajandek/take-time.jpg'},
-  {name:'Magical Athlete',image:'ajandek/magical-athlete.jpg'},
-  {name:'Heat: Pedal to the Metal',image:'ajandek/heat.jpg'},
-  {name:'The Gang',image:'ajandek/the-gang.jpg'},
-  {name:'Feed the Kraken',image:'ajandek/feed-the-kraken.jpg'},
-  {name:'Endeavor: Deep Sea',image:'ajandek/endeavor-deep-sea.jpg'},
-  {name:'Sherlock Holmes Consulting Detective',image:'ajandek/shcd.jpg'},
-  {name:'SHCD: The Baker Street Irregulars',image:'ajandek/baker-street-irregulars.jpg'},
-  {name:'The Lord of the Rings: Fate of the Fellowship',image:'ajandek/fate-of-the-fellowship.jpg'},
-  {name:'Storyfold: Wildwoods',image:'ajandek/storyfold-wildwoods.jpg'},
-  {name:'Civolution',image:'ajandek/civolution.jpg'},
-  {name:'Side Split Squat – Fitness FAQs',image:'ajandek/side-split.jpg',price:30000},
-  {name:'RDX Sport boxzsák',image:'ajandek/rdx-boxzsak.jpg',price:100000},
-  {name:'Duduk',image:'ajandek/duduk.jpg',price:70000},
-  {name:'Muay Thai course',image:'ajandek/muay-thai.jpg',price:5000}
-];
-const normName=s=>String(s||'').toLowerCase().replace(/[^a-z0-9áéíóöőúüű]+/g,' ').trim();
-function catalogImage(name){
-  const n=normName(name);if(!n)return'';
-  const words=n.split(' ').filter(w=>w.length>1);
-  const hit=REWARD_CATALOG.find(c=>normName(c.name)===n)||REWARD_CATALOG.find(c=>{const cn=normName(c.name);return cn.includes(n)||n.includes(cn)})||REWARD_CATALOG.find(c=>{const cw=normName(c.name).split(' ');return words.length>=2&&words.every(w=>cw.includes(w))});
-  return hit?hit.image:'';
-}
-function catalogModal(){
-  const have=new Set(S().rewards.map(r=>r.name.toLowerCase()));
-  const rows=REWARD_CATALOG.map((c,i)=>{const in_=have.has(c.name.toLowerCase());return`<div class="pm-catrow ${in_?'have':''}"><img src="${c.image}" alt=""><div class="grow"><b>${esc(c.name)}</b>${in_?'<span class="chip" style="margin-left:6px">már a poolban</span>':''}</div><input type="number" min="0" step="500" placeholder="Ár (Ft)" value="${c.price||''}" data-cat-price="${i}" ${in_?'disabled':''}><label class="pm-catpick"><input type="checkbox" data-cat-pick="${i}" ${in_?'disabled':''}> hozzáad</label></div>`}).join('');
-  modal('📚 Ajándék-katalógus',`<p class="vow-note" style="margin:0 0 10px">Pipáld ki, amit a poolba szeretnél, és írd be az árát – ebből lesz a darabkaszám (ár ÷ ${fragPrice().toLocaleString('hu-HU')} Ft, kerekítve; ár nélkül 1 darabka).</p><div class="pm-catlist">${rows}</div><div class="modalactions"><button class="btn primary" id="pmCatAdd">Kiválasztottak hozzáadása</button></div>`,()=>{
-    Y.$('pmCatAdd').onclick=()=>{
-      const picks=[...document.querySelectorAll('[data-cat-pick]:checked')];
-      if(!picks.length)return Y.toast('Pipálj ki legalább egyet.');
-      picks.forEach(x=>{const c=REWARD_CATALOG[Number(x.dataset.catPick)],price=Number((document.querySelector(`[data-cat-price="${x.dataset.catPick}"]`)||{}).value)||0;S().rewards.push({id:Y.uid(),name:c.name,price,fragments:price>0?fragmentsFor(price):1,collected:0,unlockedAt:'',image:c.image})});
-      close();commit();Y.toast(`${picks.length} ajándék hozzáadva`);
-    };
-  });
-}
-
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
 function revealOrder(r){
   const idx=Array.from({length:r.fragments},(_,i)=>i);let h=hash(r.id);
