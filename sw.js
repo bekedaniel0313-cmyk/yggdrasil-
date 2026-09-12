@@ -1,4 +1,4 @@
-const CACHE='yggdrasil-cache-v10';
+const CACHE='yggdrasil-cache-v11';
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['./','./sync.js','./progressmap.js','./progressmap.css','./tree.js','./tree.css','./hubs.js','./catlog.js','./levels.js','./focus.js','./manifest.webmanifest','./icon-192.png','./icon-512.png']).catch(()=>{})))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
