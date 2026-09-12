@@ -45,7 +45,7 @@ function card(h){
     else right=`<span class="chip" style="opacity:.6">${tierLabel(t)}</span>`;
     return`<div class="streak-tier ${reached?'reached':''} ${got?'got':''}"><span class="streak-days">${t.days>=365?'1 év':t.days+' nap'}</span><span class="grow streak-bar"><i style="width:${Math.min(100,Math.round(st.days/t.days*100))}%"></i></span>${right}</div>`;
   }).join('');
-  return`<div class="card"><div class="section" style="margin:0 0 10px"><h3>🔥 Zsinór</h3><span class="chip">${st.days} nap${st.start?` · ${st.start} óta`:''}</span></div><div class="streak-tiers">${rows}</div><div id="dice" class="dice" style="display:none"></div><p class="vow-note" style="margin:10px 0 0">A kockás fokozatoknál csak a legnagyobb dobás ad darabkát. Minden fokozat egyszer váltható be zsinóronként – ha megszakad, újra elölről.</p></div>`;
+  return`<div class="section" style="margin:0 0 8px"><p class="cal-edit-hint" style="margin:0">🔥 Zsinór-mérföldkövek</p><span class="chip">${st.days} nap${st.start?` · ${st.start} óta`:''}</span></div><div class="streak-tiers">${rows}</div><div id="dice" class="dice" style="display:none"></div><p class="vow-note" style="margin:8px 0 16px">A kockás fokozatoknál csak a legnagyobb dobás ad darabkát. Minden fokozat egyszer váltható be zsinóronként – ha megszakad, újra elölről.</p>`;
 }
 
 async function claim(h,tier){
