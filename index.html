@@ -115,20 +115,23 @@ function syncUI(){const el=document.getElementById('syncState');if(!el)return;el
 const BASEKEY='yggdrasil_base';let baseAt='',syncBusy=false,syncAgain=false,pullTimer=null;
 function baseLoad(){try{const b=JSON.parse(localStorage.getItem(BASEKEY));if(b&&b.at&&b.data){baseAt=b.at;return b.data}}catch(e){}return null}
 function baseStore(data,at){baseAt=at;try{localStorage.setItem(BASEKEY,JSON.stringify({at,data}))}catch(e){}}
+// a nearly-empty local state (fresh install, cleared storage, bad import) must never overwrite a populated cloud copy
+function syncSuspicious(loc,rem){const n=x=>((x.habits||[]).length+(x.categories||[]).length+Object.keys(x.logs||{}).length);const a=n(loc||{}),b=n(rem||{});return b>=20&&a<b*0.2}
 function stamp(){lastSyncAt=new Date().toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'})}
 async function remoteRow(){const r=await sbFetch('/rest/v1/yggdrasil_state?select=data,updated_at');if(!r.ok)throw new Error('pull '+r.status);const rows=await r.json();return rows[0]||null}
 function applyMerged(merged){state=migrate(merged);state.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));render();toast('Szinkron: a másik eszköz változásait összefésültem.');processClaudeInbox()}
 function processClaudeInbox(){const box=state.claudeInbox||[];if(!box.length)return;const keepDate=planDate;let n=0;box.slice().forEach(it=>{try{if(it.type==='plan_toggle'){const e=planEntries(it.date).find(x=>x.id===it.entryId);if(e&&planDone(e)!==!!it.done){planDate=it.date;togglePlanDone(it.entryId);n++}}else if(it.type==='task_toggle'){const m=state.milestones.find(x=>x.id===it.mid),t=m&&(m.tasks||[]).find(x=>x.id===it.tid);if(t&&!!t.completedAt!==!!it.done){toggleTask(it.mid,it.tid);n++}}}catch(e){}});planDate=keepDate;state.claudeInbox=[];save();render();if(n)toast(`✨ Claude ${n} kérését végrehajtottam.`)}
 async function syncPush(azonnal=false){if(!sb.refresh)return;if(!azonnal){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncPush(true),2500);return}if(syncBusy){syncAgain=true;return}syncBusy=true;try{if(!await sbEnsure()){syncStatus='error';syncUI();return}syncStatus='syncing';syncUI();
 const rem=await remoteRow();
-if(rem&&rem.updated_at&&(Date.parse(rem.updated_at)||0)!==(Date.parse(baseAt)||0)){const base=baseLoad();applyMerged(SYNC.merge(base||rem.data,state,rem.data,true))}
+if(rem&&rem.updated_at&&(Date.parse(rem.updated_at)||0)!==(Date.parse(baseAt)||0)){const base=baseLoad();applyMerged(SYNC.merge(base||migrate(null),state,rem.data,true))}
+if(rem&&syncSuspicious(state,rem.data)){state=migrate(rem.data);state.updatedAt=rem.updated_at;localStorage.setItem(KEY,JSON.stringify(state));baseStore(state,rem.updated_at);render();toast('Szinkron: a helyi állapot majdnem üres volt, a felhő adata maradt.');syncStatus='ok';stamp();return}
 const at=state.updatedAt||new Date().toISOString();const r=await sbFetch('/rest/v1/yggdrasil_state',{method:'POST',headers:{Prefer:'resolution=merge-duplicates'},body:JSON.stringify({user_id:jwtSub(sb.access),data:state,updated_at:at})});
 if(r.ok){baseStore(state,at);syncStatus='ok';stamp()}else syncStatus='error'}catch(e){syncStatus='offline'}finally{syncBusy=false}syncUI();if(syncAgain){syncAgain=false;syncPush()}}
 async function syncPull(){if(!sb.refresh||syncBusy)return;syncBusy=true;let pushAfter=false;try{if(!await sbEnsure()){syncStatus='error';syncUI();return}syncStatus='syncing';syncUI();
 const rem=await remoteRow();
 if(!rem){pushAfter=true}else{const base=baseLoad(),remNew=(Date.parse(rem.updated_at||'')||0)!==(Date.parse(baseAt)||0),localChanged=!base||state.updatedAt!==base.updatedAt;
 if(remNew&&!localChanged){state=migrate(rem.data);state.updatedAt=rem.updated_at;localStorage.setItem(KEY,JSON.stringify(state));baseStore(state,rem.updated_at);render();processClaudeInbox()}
-else if(remNew&&localChanged){applyMerged(SYNC.merge(base||rem.data,state,rem.data,false));pushAfter=true}
+else if(remNew&&localChanged){applyMerged(SYNC.merge(base||migrate(null),state,rem.data,false));pushAfter=true}
 else if(localChanged)pushAfter=true}
 syncStatus='ok';stamp()}catch(e){syncStatus='offline'}finally{syncBusy=false}syncUI();if(pushAfter)syncPush(true)}
 function schedulePull(){clearTimeout(pullTimer);pullTimer=setTimeout(()=>{if(sb.refresh&&document.visibilityState==='visible')syncPull()},800)}
