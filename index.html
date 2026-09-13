@@ -123,13 +123,13 @@ function applyMerged(merged){state=migrate(merged);state.updatedAt=new Date().to
 function processClaudeInbox(){const box=state.claudeInbox||[];if(!box.length)return;const keepDate=planDate;let n=0;box.slice().forEach(it=>{try{if(it.type==='plan_toggle'){const e=planEntries(it.date).find(x=>x.id===it.entryId);if(e&&planDone(e)!==!!it.done){planDate=it.date;togglePlanDone(it.entryId);n++}}else if(it.type==='task_toggle'){const m=state.milestones.find(x=>x.id===it.mid),t=m&&(m.tasks||[]).find(x=>x.id===it.tid);if(t&&!!t.completedAt!==!!it.done){toggleTask(it.mid,it.tid);n++}}}catch(e){}});planDate=keepDate;state.claudeInbox=[];save();render();if(n)toast(`✨ Claude ${n} kérését végrehajtottam.`)}
 async function syncPush(azonnal=false){if(!sb.refresh)return;if(!azonnal){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncPush(true),2500);return}if(syncBusy){syncAgain=true;return}syncBusy=true;try{if(!await sbEnsure()){syncStatus='error';syncUI();return}syncStatus='syncing';syncUI();
 const rem=await remoteRow();
-if(rem&&rem.updated_at&&(Date.parse(rem.updated_at)||0)!==(Date.parse(baseAt)||0)){const base=baseLoad();applyMerged(SYNC.merge(base||migrate(null),state,rem.data,true))}
+if(rem&&rem.updated_at&&(Date.parse(rem.updated_at)||0)!==(Date.parse(baseAt)||0)&&!syncSuspicious(rem.data,state)){const base=baseLoad();applyMerged(SYNC.merge(base||migrate(null),state,rem.data,true))}
 if(rem&&syncSuspicious(state,rem.data)){state=migrate(rem.data);state.updatedAt=rem.updated_at;localStorage.setItem(KEY,JSON.stringify(state));baseStore(state,rem.updated_at);render();toast('Szinkron: a helyi állapot majdnem üres volt, a felhő adata maradt.');syncStatus='ok';stamp();return}
 const at=state.updatedAt||new Date().toISOString();const r=await sbFetch('/rest/v1/yggdrasil_state',{method:'POST',headers:{Prefer:'resolution=merge-duplicates'},body:JSON.stringify({user_id:jwtSub(sb.access),data:state,updated_at:at})});
 if(r.ok){baseStore(state,at);syncStatus='ok';stamp()}else syncStatus='error'}catch(e){syncStatus='offline'}finally{syncBusy=false}syncUI();if(syncAgain){syncAgain=false;syncPush()}}
 async function syncPull(){if(!sb.refresh||syncBusy)return;syncBusy=true;let pushAfter=false;try{if(!await sbEnsure()){syncStatus='error';syncUI();return}syncStatus='syncing';syncUI();
 const rem=await remoteRow();
-if(!rem){pushAfter=true}else{const base=baseLoad(),remNew=(Date.parse(rem.updated_at||'')||0)!==(Date.parse(baseAt)||0),localChanged=!base||state.updatedAt!==base.updatedAt;
+if(!rem){pushAfter=true}else if(syncSuspicious(rem.data,state)){pushAfter=true;toast('Szinkron: a felhőbeli állapot majdnem üres volt, a helyi adat maradt és felkerül.')}else{const base=baseLoad(),remNew=(Date.parse(rem.updated_at||'')||0)!==(Date.parse(baseAt)||0),localChanged=!base||state.updatedAt!==base.updatedAt;
 if(remNew&&!localChanged){state=migrate(rem.data);state.updatedAt=rem.updated_at;localStorage.setItem(KEY,JSON.stringify(state));baseStore(state,rem.updated_at);render();processClaudeInbox()}
 else if(remNew&&localChanged){applyMerged(SYNC.merge(base||migrate(null),state,rem.data,false));pushAfter=true}
 else if(localChanged)pushAfter=true}
