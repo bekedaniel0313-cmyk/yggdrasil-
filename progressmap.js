@@ -325,6 +325,25 @@ async function rollMapDice(kind,pid,id){
   if(won){openGift(1,x.label,{silent:true});Y.toast('🧩 +1 darabka a zsákba')}else Y.toast(`🎲 ${roll} – most nem jött össze.`);
   Y.save();return true;
 }
+// habit milestones and tasks (index.html 'merfoldko' / 'feladat') can carry a gift
+// too: fixed darabkák and/or a dice, claimed in the sack once the item is completed
+function milestoneGiftPending(){
+  const s=S();
+  return (s.milestones||[]).filter(m=>!m.archived&&m.completedAt&&!m.giftOpened&&m.gift&&(Number(m.gift.fixed)||Number(m.gift.dice))).map(m=>{
+    const h=(s.habits||[]).find(x=>x.id===m.habitId);
+    return{m,fixed:Math.max(0,Number(m.gift.fixed)||0),dice:[2,4,6].includes(Number(m.gift.dice))?Number(m.gift.dice):0,label:`${h?`${h.emoji||''} ${h.name} · `:''}${m.kind==='merfoldko'?'🏁':'🎯'} ${m.name}`};
+  });
+}
+async function claimMilestoneGift(mid){
+  const x=milestoneGiftPending().find(y=>y.m.id===mid);if(!x||mapRolling)return false;mapRolling=true;
+  let count=x.fixed,roll=0,won=false;
+  if(x.dice){roll=1+Math.floor(Math.random()*x.dice);won=roll===x.dice;await STREAK.animate(x.dice,roll,won);if(won)count++;
+    STREAK.logDice({source:'milestone',kind:x.m.kind,name:x.m.name,dice:x.dice,roll,won})}
+  mapRolling=false;
+  x.m.giftOpened=true;x.m.giftRoll=roll;x.m.giftWon=won;x.m.giftClaimedAt=Y.today();
+  if(count){openGift(count,x.label,{silent:true});Y.toast(`🧩 +${count} darabka a zsákba`)}else Y.toast(`🎲 ${roll} – most nem jött össze.`);
+  Y.save();return true;
+}
 // one sack darabka → how many reward-darabkák it yields
 function rollOutcome(){
   const x=Math.random()*100;
@@ -354,12 +373,14 @@ function sackModal(){
   const pend=window.STREAK?STREAK.pendingAll():[];
   const tp=window.TREE?TREE.pendingToday():null;
   const treeRow=tp?`<div class="sack-pend-row"><span class="grow"><b>🌳 Yggdrasil – ma ${tp.n}/6 szint él</b><small>csak ma váltható be</small></span><button type="button" class="btn primary small" data-sack-tree>🎲 D${tp.dice}</button></div>`:'';
-  const md=mapDicePending();
+  const md=mapDicePending(),mg=milestoneGiftPending();
+  const mileRows=mg.map(x=>`<div class="sack-pend-row"><span class="grow"><b>${esc(x.label)}</b><small>mérföldkő · ${x.m.kind==='merfoldko'?'folyamatcél':'eredménycél'}</small></span><button type="button" class="btn primary small" data-sack-mile="${x.m.id}">${x.fixed?`🎁 +${x.fixed}`:''}${x.dice?` 🎲 D${x.dice}`:''}</button></div>`).join('');
   const mapRows=md.map(x=>`<div class="sack-pend-row"><span class="grow"><b>${esc(x.label)}</b><small>térkép · ${x.kind==='stage'?'stáció':'állomás'}</small></span><button type="button" class="btn primary small" data-sack-map="${x.kind}|${x.p.id}|${x.o.id}">🎲 D${x.dice}</button></div>`).join('');
-  const pendHtml=(pend.length||tp||md.length)?`<div class="sack-pend"><p class="cal-edit-hint" style="margin:0 0 6px">🔥 Beváltható jutalmak</p>${treeRow}${mapRows}${pend.map(x=>`<div class="sack-pend-row"><span class="grow"><b>${esc(x.h.emoji||'')} ${esc(x.h.name)}</b><small>${x.t.days>=365?'1 év':x.t.days+' nap'}${x.kind?' · 🔁 újrakezdés':''}</small></span><button type="button" class="btn primary small" data-sack-claim="${x.h.id}|${x.t.days}|${x.kind}">${x.t.fixed?`🎁 +${x.t.fixed}`:''}${x.t.dice?` 🎲 D${x.t.dice}`:''}</button></div>`).join('')}<div id="dice" class="dice" style="display:none"></div></div>`:'';
+  const pendHtml=(pend.length||tp||md.length||mg.length)?`<div class="sack-pend"><p class="cal-edit-hint" style="margin:0 0 6px">🔥 Beváltható jutalmak</p>${treeRow}${mapRows}${mileRows}${pend.map(x=>`<div class="sack-pend-row"><span class="grow"><b>${esc(x.h.emoji||'')} ${esc(x.h.name)}</b><small>${x.t.days>=365?'1 év':x.t.days+' nap'}${x.kind?' · 🔁 újrakezdés':''}</small></span><button type="button" class="btn primary small" data-sack-claim="${x.h.id}|${x.t.days}|${x.kind}">${x.t.fixed?`🎁 +${x.t.fixed}`:''}${x.t.dice?` 🎲 D${x.t.dice}`:''}</button></div>`).join('')}<div id="dice" class="dice" style="display:none"></div></div>`:'';
   const body=`${pendHtml}<div class="sack"><div class="sack-box" id="sackBox">🧳</div><div class="sack-count"><b id="sackN">${n}</b> bontatlan darabka</div><div id="sackOutcome" class="sack-outcome"></div><div id="sackResult"></div></div><p class="vow-note" style="margin:8px 0 0">Egy kibontás: 88% 1 darabka · 5% dupla · 5% pénzfeldobás · 1% hármas · 1% üres. Minden darabka 15% eséllyel <b>joker</b>: azt te teszed oda, ahova akarod. ${pool.length?`${pool.length} ajándék várja.`:'<b>Nincs hiányos ajándék a poolban</b> – vegyél fel újat, a darabkák megmaradnak.'}</p><div class="modalactions"><button class="btn" data-close="pmapModal" id="sackClose">Bezárás</button><button class="btn primary" id="sackOpen" ${n&&pool.length?'':'disabled'}>🎁 Bonts ki egyet</button></div>`;
   modal('🧩 Darabkák',body,()=>{
     Y.$('sackClose').onclick=close;
+    document.querySelectorAll('[data-sack-mile]').forEach(b=>b.onclick=async()=>{b.disabled=true;const ok=await claimMilestoneGift(b.dataset.sackMile);if(ok!==false)sackModal()});
     document.querySelectorAll('[data-sack-map]').forEach(b=>b.onclick=async()=>{const[kind,pid,id]=b.dataset.sackMap.split('|');b.disabled=true;const ok=await rollMapDice(kind,pid,id);if(ok!==false)sackModal()});
     const tb=document.querySelector('[data-sack-tree]');if(tb)tb.onclick=async()=>{tb.disabled=true;const ok=await TREE.claimToday();if(ok!==false)sackModal()};
     document.querySelectorAll('[data-sack-claim]').forEach(b=>b.onclick=async()=>{const[hid,days,kind]=b.dataset.sackClaim.split('|');b.disabled=true;const ok=await STREAK.claimFromSack(hid,Number(days),kind||'');if(ok!==false)sackModal()});
@@ -582,5 +603,5 @@ function bind(){
   if(!resizeBound){resizeBound=true;window.addEventListener('resize',()=>{if(document.getElementById('pmDeps'))drawDeps()})}
 }
 
-return{init,migrate,leave,list,detail,rewards,bind,openGift,unopened};
+return{init,migrate,leave,list,detail,rewards,bind,openGift,unopened,milestoneGiftPending,claimMilestoneGift};
 })();
