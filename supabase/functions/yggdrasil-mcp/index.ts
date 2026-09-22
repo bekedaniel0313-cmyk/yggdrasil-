@@ -149,6 +149,17 @@ function addPlanEntry(s: Json, a: Json) {
   const rep = a.repeat; if (rep && rep.freq) { const weeks = Math.min(13, Math.max(1, Number(rep.weeks) || 13)); const start = dateOnly(date); const days: number[] = Array.isArray(rep.weekdays) && rep.weekdays.length ? rep.weekdays.map(Number) : [(start.getDay() + 6) % 7]; const sid = uid(); e.seriesId = sid; const copyTitle = title || (ref ? refText(s, ref) : ""); for (let i = 1; i <= weeks * 7; i++) { const d = new Date(start); d.setDate(start.getDate() + i); const wd = (d.getDay() + 6) % 7; const ok = rep.freq === "daily" || (rep.freq === "weekly" && days.includes(wd)) || (rep.freq === "monthly" && d.getDate() === start.getDate()); if (!ok) continue; const k = ds(d); s.dayplan[k] = (s.dayplan[k] || []).concat({ id: uid(), habitId, eventId: "", catId, slot: t.slot, offset: t.offset, minutes, ref: "", done: false, title: habitId && !ref ? "" : copyTitle, prio: 0, seriesId: sid, source: "claude" }); made.push(k); } }
   return `Beírva: ${date} ${slotLabel(t.slot, t.offset)} · ${minutes} perc · ${planLabel(s, e)}${made.length > 1 ? ` · ismétlés: +${made.length - 1} alkalom (utolsó: ${made[made.length - 1]})` : ""} [id:${e.id}]`;
 }
+/** External activity (e.g. an AnkiVoice pomodoro round): queued for the app, which books it
+ *  like a ticked day-plan block on the habit (log, entry, XP) at its next sync. */
+function logActivity(s: Json, a: Json) {
+  const h = findByName(s.habits || [], String(a.habit || "Anki"), "szokás");
+  const minutes = Math.max(1, Math.round(Number(a.minutes) || 30)); const cards = Math.max(0, Math.round(Number(a.cards) || 0));
+  const date = a.date || today(); const t = a.start ? parseTime(a.start) : null;
+  if (a.start && !t) throw new Error("A kezdés formátuma ÓÓ:PP legyen, pl. 09:30.");
+  s.claudeInbox = s.claudeInbox || [];
+  s.claudeInbox.push({ id: uid(), type: "activity", habitId: h.id, minutes, cards, date, slot: t ? t.slot : -1, offset: t ? t.offset : 0, source: String(a.source || "external"), at: new Date().toISOString() });
+  return `Rögzítve: ${h.name} · ${minutes} perc${cards ? ` · ${cards} kártya` : ""} · ${date}${a.start ? " " + a.start : ""}. Az app a következő szinkronnál könyveli.`;
+}
 function findPlanEntry(s: Json, a: Json) {
   const date = a.date || today(); const list = (s.dayplan || {})[date] || [];
   if (a.id) { const e = list.find((x: Json) => x.id === a.id); if (!e) throw new Error(`Nincs ilyen napiterv-elem (${a.id}) ${date}-n.`); return { date, e }; }
@@ -197,6 +208,7 @@ const TOOLS = [
   { name: "set_done", description: "Napiterv-elem (id vagy title + date) vagy task (task név) kipipálása / visszavonása. Szokáshoz kötött elemnél az app végzi a könyvelést a következő szinkronnál.", inputSchema: { type: "object", properties: { date: { type: "string" }, id: { type: "string" }, title: { type: "string" }, task: { type: "string" }, done: { type: "boolean", description: "alapból true" } } } },
   { name: "add_task", description: "Új task egy meglévő Feladatba (feladat), vagy új Feladat egy szokás alatt (habit; alapból a „Todok intézése”).", inputSchema: { type: "object", properties: { name: { type: "string" }, feladat: { type: "string" }, habit: { type: "string" }, deadline: { type: "string" } }, required: ["name"] } },
   { name: "add_note", description: "Naplóbejegyzés egy szokáshoz (habit), eseményhez (event) vagy Feladathoz (feladat).", inputSchema: { type: "object", properties: { text: { type: "string" }, title: { type: "string" }, habit: { type: "string" }, event: { type: "string" }, feladat: { type: "string" }, date: { type: "string" }, minutes: { type: "number" } }, required: ["text"] } },
+  { name: "log_activity", description: "Külső tevékenység könyvelése egy szokásra (pl. AnkiVoice pomodoro-kör): percek, opcionálisan kártyaszám, dátum és kezdés (ÓÓ:PP). Az app a következő szinkronnál kész napiterv-blokként könyveli (napló, XP).", inputSchema: { type: "object", properties: { habit: { type: "string", description: "szokás neve, alapból Anki" }, minutes: { type: "number" }, cards: { type: "number" }, source: { type: "string" }, date: { type: "string" }, start: { type: "string", description: "ÓÓ:PP" } }, required: ["minutes"] } },
   { name: "set_priorities", description: "A nap 1-2-3 teendőjének beállítása a napiterv elemei közül (id vagy title).", inputSchema: { type: "object", properties: { date: { type: "string" }, items: { type: "array", items: { type: "object", properties: { id: { type: "string" }, title: { type: "string" }, prio: { type: "number" } } } } }, required: ["items"] } },
 ];
 
@@ -211,6 +223,7 @@ async function callTool(name: string, args: Json) {
     case "add_task": text = addTask(s, args); write = true; break;
     case "add_note": text = addNote(s, args); write = true; break;
     case "set_priorities": text = setPriorities(s, args); write = true; break;
+    case "log_activity": text = logActivity(s, args); write = true; break;
     default: throw new Error("Ismeretlen eszköz: " + name);
   }
   if (write) { await saveRow(s); await log(name, text.slice(0, 300), args); }
