@@ -4,7 +4,8 @@ let Y=null,calCur=null;
 function init(bridge){Y=bridge}
 const S=()=>Y.state();
 const esc=s=>Y.esc(s);
-function migrate(s){s.focus=s.focus&&typeof s.focus==='object'?s.focus:{key:''};if(s.focus.key==null)s.focus.key=''}
+function migrate(s){s.focus=s.focus&&typeof s.focus==='object'?s.focus:{key:''};if(s.focus.key==null)s.focus.key='';if(s.focus.key&&!s.focus.since)s.focus.since=new Date().toLocaleDateString('sv-SE')}
+function focusDays(){const f=S().focus;if(!f.key||!f.since)return 0;return Math.floor((new Date(Y.today()+'T12:00:00')-new Date(f.since+'T12:00:00'))/86400000)+1}
 
 function resolve(){
   const k=S().focus.key;if(!k)return null;
@@ -68,15 +69,18 @@ function entry(r){
 function view(){
   const r=resolve();
   const head=Y.top('🎯 Fókusz','Egy tevékenység, amire most figyelsz: naptár, sorozat, és a mai idő beírása.',`<button class="btn" data-go="prio">← Prioritások</button>`);
-  const picker=`<div class="card"><label class="field" style="display:block"><span style="font-size:13px;color:var(--muted);font-weight:800">Tevékenység</span><select id="focusPick" style="width:100%;margin-top:6px">${options(S().focus.key)}</select></label></div>`;
+  const days=focusDays();
+  const picker=`<div class="card"><div class="section" style="margin:0"><span class="chip">${r?`📌 ${days}. napja fókuszban`:'nincs fókusz'}</span><button class="btn small" id="focusChange">${r?'Fókusz módosítása':'Válassz tevékenységet'}</button></div><select id="focusPick" style="width:100%;margin-top:8px;display:none">${options(S().focus.key)}</select></div>`;
   if(!r)return head+picker+'<div class="card empty">Válassz egy kategóriát vagy szokást.</div>';
   const st=streak(r),t=Y.today(),d=doneOn(r,t);
-  const stats=`<div class="card"><h2 style="margin:0 0 6px">${r.emoji} ${esc(r.name)}</h2><div class="chips"><span class="chip">🔥 sorozat: ${st} nap</span><span class="chip">ma: ${valueText(r,t)}</span><span class="chip">${d===true?'✅ mai cél kész':d===false?'○ a mai cél még hiányzik':'😌 ma pihenőnap'}</span></div></div>`;
-  return head+picker+`<div class="grid g2">${stats}${entry(r)}${calendar(r)}</div>`;
+  const vows=r.kind==='habit'?Y.vowsView(r.h):Y.categoryVowsView(r.c);
+  const stats=`<div class="card"><div class="chips"><span class="chip">🔥 sorozat: ${st} nap</span><span class="chip">ma: ${valueText(r,t)}</span><span class="chip">${d===true?'✅ mai cél kész':d===false?'○ a mai cél még hiányzik':'😌 ma pihenőnap'}</span></div></div>`;
+  return head+picker+`<div class="grid g2">${vows}${stats}${entry(r)}${calendar(r)}</div>`;
 }
 function bind(){
-  const pick=document.getElementById('focusPick');
-  if(pick)pick.onchange=()=>{S().focus.key=pick.value;calCur=null;Y.save();Y.render()};
+  const pick=document.getElementById('focusPick'),chg=document.getElementById('focusChange');
+  if(chg)chg.onclick=()=>{const has=!!S().focus.key;if(has&&!confirm(`Biztosan másik tevékenységet teszel fókuszba? A számláló (${focusDays()} nap) újraindul.`))return;pick.style.display='';pick.focus();};
+  if(pick)pick.onchange=()=>{const v=pick.value;if(v===S().focus.key){Y.render();return}S().focus.key=v;S().focus.since=v?Y.today():'';calCur=null;Y.save();Y.render()};
   document.querySelectorAll('[data-focus-cal]').forEach(b=>b.onclick=()=>{const cur=calCur||new Date(Y.today()+'T12:00:00');calCur=new Date(cur.getFullYear(),cur.getMonth()+Number(b.dataset.focusCal),1,12);Y.render()});
   document.querySelectorAll('[data-focus-check]').forEach(b=>b.onclick=()=>{const h=S().habits.find(x=>x.id===b.dataset.focusCheck);if(!h)return;const t=Y.today();if(Y.complete(h,t))Y.clearLog(h.id,t);else Y.setLog(h.id,t,Math.max(1,Number(h.target)||1))});
   document.querySelectorAll('[data-focus-inc]').forEach(b=>b.onclick=()=>{const[id,d]=b.dataset.focusInc.split('|');const t=Y.today(),nv=Math.max(0,Y.getLog(id,t)+Number(d));if(nv>0)Y.setLog(id,t,nv);else Y.clearLog(id,t)});
