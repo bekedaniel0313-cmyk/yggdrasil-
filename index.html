@@ -154,8 +154,15 @@ const EMOJIK={'Tanulás & tudás':['📖','📚','✍️','📝','🧠','🎓','
 'Kreatív & művészet':['🎨','🖌️','🎸','🎹','🎤','🎧','🎬','📷','🥁','🎻','✏️','🧵','🎭','🖊️','🪄','🎼'],
 'Természet':['🌱','🌿','🍃','🌳','🌲','🌸','🌻','🌺','🍄','🌾','🦋','🐝','🌊','⛰️','🏕️','🌤️','🍀','🌵'],
 'Otthon & munka':['🏠','🧹','🧺','🍳','🛒','🧾','💼','📅','⏰','📌','🔧','🪴','💰','📦','🗝️','🧰'],
-'Kapcsolatok':['💬','📞','🤝','❤️','🎁','✉️','🫂','🐕','🐈','👋','🎉','🌍']};
-function buildEmojiPanel(inputId){const p=$(inputId+'Panel');if(!p)return null;if(!p.dataset.built){p.innerHTML=Object.entries(EMOJIK).map(([cim,lista])=>`<div class="emoji-cat">${cim}</div><div class="emoji-grid">${lista.map(e=>`<button type="button" class="emoji-btn" data-emoji="${e}">${e}</button>`).join('')}</div>`).join('');p.dataset.built='1';p.querySelectorAll('[data-emoji]').forEach(b=>b.onclick=()=>{$(inputId).value=b.dataset.emoji;p.classList.remove('show')})}return p}
+'Kapcsolatok':['💬','📞','🤝','❤️','🎁','✉️','🫂','🐕','🐈','👋','🎉','🌍'],
+'Rendszer & fókusz':['📅','🍅','🛡️','🏷️','🎯','🎲','🧭','🏁','📋','🔁','⏱️','🤖','🛠️','⚙️','🧱','🎓','🧬','📈','🗓️','🔔'],
+'Ikonok':['','']};
+// picture "emojis": private-use characters that render as small images everywhere
+const ICON_EMOJI={'':{src:'ikon/freedom.png',name:'Freedom'},'':{src:'ikon/anki.png',name:'Anki'}};
+const ICON_RE=/[-]/;
+function iconize(root){if(!root||!root.querySelectorAll)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>{const p=n.parentNode;if(!p||['SCRIPT','STYLE','TEXTAREA','OPTION','TITLE'].includes(p.nodeName))return NodeFilter.FILTER_REJECT;return ICON_RE.test(n.nodeValue)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_SKIP}});const list=[];while(w.nextNode())list.push(w.currentNode);list.forEach(n=>{const frag=document.createDocumentFragment();n.nodeValue.split(/([-])/).forEach(part=>{const ic=ICON_EMOJI[part];if(ic){const img=document.createElement('img');img.className='emo-img';img.src=ic.src;img.alt=ic.name;img.title=ic.name;frag.appendChild(img)}else if(part)frag.appendChild(document.createTextNode(part))});n.parentNode.replaceChild(frag,n)})}
+new MutationObserver(ms=>ms.forEach(m=>{if(m.type==='characterData')iconize(m.target.parentNode);m.addedNodes.forEach(n=>{if(n.nodeType===3){if(ICON_RE.test(n.nodeValue))iconize(n.parentNode)}else iconize(n)})})).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+function buildEmojiPanel(inputId){const p=$(inputId+'Panel');if(!p)return null;if(!p.dataset.built){p.innerHTML=Object.entries(EMOJIK).map(([cim,lista])=>`<div class="emoji-cat">${cim}</div><div class="emoji-grid">${lista.map(e=>`<button type="button" class="emoji-btn" data-emoji="${e}">${ICON_EMOJI[e]?`<img class="emo-img" src="${ICON_EMOJI[e].src}" alt="${ICON_EMOJI[e].name}">`:e}</button>`).join('')}</div>`).join('');p.dataset.built='1';p.querySelectorAll('[data-emoji]').forEach(b=>b.onclick=()=>{$(inputId).value=b.dataset.emoji;p.classList.remove('show')})}return p}
 let loadDegraded=null;
 let currentView='home',currentHabitId='',currentRoutineId='',currentCategoryId='',currentGroupId='',currentEventId='',calendarCursor=new Date(),planDate=today(),planAutoScroll=true,planKeepScroll=null,monthCursor=new Date(),calSelected=today(),state=load();
 const $=id=>document.getElementById(id);

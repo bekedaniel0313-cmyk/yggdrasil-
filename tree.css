@@ -112,3 +112,6 @@ table.ot input{width:56px;padding:4px;border-radius:6px;border:1px solid var(--l
 .plan-tag{margin-left:3px;font-size:.9em;opacity:.9}
 .tagchip{cursor:pointer;opacity:.55;border:1px dashed var(--line)}
 .tagchip.on{opacity:1;border:1px solid var(--green);background:#e7f0e6}
+
+.emo-img{width:1.15em;height:1.15em;vertical-align:-0.2em;object-fit:contain;border-radius:3px}
+input[type=text].emoji-input{font-family:inherit}
