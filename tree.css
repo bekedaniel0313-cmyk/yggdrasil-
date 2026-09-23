@@ -115,3 +115,5 @@ table.ot input{width:56px;padding:4px;border-radius:6px;border:1px solid var(--l
 
 .emo-img{width:1.15em;height:1.15em;vertical-align:-0.2em;object-fit:contain;border-radius:3px}
 input[type=text].emoji-input{font-family:inherit}
+
+.pomo-plan{display:inline-block;max-width:520px;text-align:left;background:var(--panel2);border-radius:12px;padding:8px 12px;margin:0 0 14px;font-size:14px;white-space:pre-wrap}
