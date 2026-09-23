@@ -11,7 +11,7 @@ function shift(iso,d){const x=new Date(iso+'T12:00:00');x.setDate(x.getDate()+d)
 function weekDates(i){const o=S().oraterv;const a=shift(o.start,i*7);return Array.from({length:7},(_,k)=>shift(a,k))}
 function currentWeek(){const o=S().oraterv;if(!o.start)return-1;const t=Y.today();const n=Math.floor((new Date(t+'T12:00:00')-new Date(o.start+'T12:00:00'))/86400000);if(n<0)return-1;const w=Math.floor(n/7);return w<o.weeks?w:o.weeks}
 // hours actually booked on a habit in a week: minute logs, or completed plan blocks for non-minute habits
-function actualMinutes(h,dates){if(!h)return 0;if(h.measure==='minutes')return dates.reduce((s,d)=>s+(Y.getLog(h.id,d)||0),0);return dates.reduce((s,d)=>s+Y.planEntries(d).filter(e=>e.habitId===h.id&&Y.planDone(e)).reduce((a,e)=>a+(Number(e.minutes)||0),0),0)}
+function actualMinutes(h,dates){if(!h)return 0;if(h.measure==='minutes')return dates.reduce((s,d)=>s+(Y.habitMinutesOn?Y.habitMinutesOn(h,d):(Y.getLog(h.id,d)||0)),0);return dates.reduce((s,d)=>s+Y.planEntries(d).filter(e=>e.habitId===h.id&&Y.planDone(e)).reduce((a,e)=>a+(Number(e.minutes)||0),0),0)}
 const fh=n=>{const v=Math.round(n*10)/10;return(Number.isInteger(v)?v:v.toFixed(1).replace('.',','))}
 function cellClass(plan,act,wi,cur){if(!plan)return act?'ot-extra':'ot-none';const r=act/plan;if(wi<cur)return r>=0.95?'ot-ok':r>=0.5?'ot-half':'ot-miss';if(wi===cur)return r>=0.95?'ot-ok':r>0?'ot-run':'ot-cur';return'ot-future'}
 function summary(){const o=S().oraterv,cur=currentWeek();if(!o.rows.length||cur<0||cur>=o.weeks)return null;const dates=weekDates(cur);let plan=0,act=0;o.rows.forEach(r=>{const h=S().habits.find(x=>x.id===r.habitId);plan+=r.plan[cur]||0;act+=actualMinutes(h,dates)/60});return{week:cur+1,weeks:o.weeks,plan,act}}
