@@ -108,3 +108,7 @@ table.ot .ot-future{background:transparent;color:var(--muted)}
 table.ot .ot-curcol{box-shadow:inset 0 0 0 2px var(--green)}
 table.ot tr.ot-sum td{font-weight:800}
 table.ot input{width:56px;padding:4px;border-radius:6px;border:1px solid var(--line);text-align:center}
+
+.plan-tag{margin-left:3px;font-size:.9em;opacity:.9}
+.tagchip{cursor:pointer;opacity:.55;border:1px dashed var(--line)}
+.tagchip.on{opacity:1;border:1px solid var(--green);background:#e7f0e6}
