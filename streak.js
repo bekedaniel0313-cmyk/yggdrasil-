@@ -68,8 +68,9 @@ function tierState(h,tier){
   return{held,lost,restartNow,reachedNow,cur};
 }
 function key(h,tier,st,kind){return`${h.id}|${tier.days}|${st.start}${kind==='restart'?'|r':''}`}
+function rewardsOn(h){return h.streakRewards!=null?!!h.streakRewards:!h.parentId}
 function pending(h){
-  const out=[];
+  const out=[];if(!rewardsOn(h))return out;
   TIERS.forEach(t=>{const ts=tierState(h,t);if(!ts.reachedNow)return;if(!S().streakAwards[key(h,t,ts.cur,'')])out.push({t,kind:''});if(ts.restartNow&&!S().streakAwards[key(h,t,ts.cur,'restart')])out.push({t,kind:'restart'})});
   return out;
 }
@@ -80,6 +81,7 @@ function gotChip(got){return`<span class="chip">${got.roll?`🎲 ${got.roll}/${g
 function claimBtn(h,t,kind){return`<button class="btn small" data-streak-go title="Beváltás a 🧩 Darabkáknál">${kind?'🔁 ':''}${t.fixed?`🎁 +${t.fixed}`:''}${t.dice?` 🎲 D${t.dice}`:''} → 🧩</button>`}
 function card(h){
   const st=streak(h),aw=S().streakAwards;
+  if(!rewardsOn(h))return`<div class="section" style="margin:0 0 8px"><p class="cal-edit-hint" style="margin:0">🔥 Konzisztens</p><span class="chip">${st.days} nap${st.start?` · ${st.start} óta`:''}</span></div><p class="vow-note" style="margin:0 0 16px">Ennél az alszokásnál nincsenek konzisztencia-jutalmak – a szokás ✏️ szerkesztőjében kapcsolhatod be.</p>`;
   const rows=TIERS.map(t=>{
     const ts=tierState(h,t),k=key(h,t,ts.cur,''),kr=key(h,t,ts.cur,'restart'),got=aw[k],gotR=aw[kr];
     const mark=ts.held?'<span class="streak-mark ok" title="Áll: a legutóbbi teljes sorozat elérte">✓</span>':ts.lost?'<span class="streak-mark bad" title="Elveszett: egy későbbi sorozat nem érte el – újrakezdéssel visszaszerezhető">✗</span>':'<span class="streak-mark"></span>';
@@ -125,5 +127,5 @@ function animate(sides,roll,won){
 function bind(){
   document.querySelectorAll('[data-streak-go]').forEach(b=>b.onclick=()=>Y.go('pmapRewards'));
 }
-return{init,migrate,card,bind,streak,runs,tierState,pending,pendingCount,pendingAll,claimFromSack,animate,logDice,TIERS};
+return{init,migrate,card,bind,streak,runs,tierState,pending,pendingCount,pendingAll,claimFromSack,animate,logDice,rewardsOn,TIERS};
 })();
