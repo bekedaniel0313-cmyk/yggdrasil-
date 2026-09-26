@@ -14,9 +14,10 @@ function bucket(key,create){
 }
 function migrate(s){}
 function counts(){const out={};LISTS.forEach(l=>{const m=(s=>s.milestones.find(x=>x.todoList===l.key&&!x.archived))(S());out[l.key]=m?(m.tasks||[]).filter(t=>!t.completedAt).length:0});return out}
+function mapsOf(m,t){const ref=m.id+'|'+t.id;return S().pmaps.filter(p=>p.nodes.some(n=>n.ref===ref))}
 function taskRow(m,t){
-  const done=!!t.completedAt;
-  return`<div class="todo-row ${done?'done':''}" draggable="true" data-todo-drag="${m.id}|${t.id}"><input type="checkbox" data-todo-tick="${m.id}|${t.id}" ${done?'checked':''}><span class="grow todo-name" data-todo-edit="${m.id}|${t.id}">${esc(t.name)}${t.deadline?`<small>📅 ${t.deadline}</small>`:''}</span><span class="todo-actions"><button type="button" class="btn small" data-todo-plan="${m.id}|${t.id}" title="Napitervbe">📅</button><select class="todo-move" data-todo-move="${m.id}|${t.id}" title="Áthelyezés">${LISTS.map(l=>`<option value="${l.key}" ${m.todoList===l.key?'selected':''}>${l.emoji}</option>`).join('')}</select><button type="button" class="btn small" data-todo-del="${m.id}|${t.id}" title="Törlés">🗑️</button></span></div>`;
+  const done=!!t.completedAt,maps=mapsOf(m,t);
+  return`<div class="todo-row ${done?'done':''}" draggable="true" data-todo-drag="${m.id}|${t.id}"><input type="checkbox" data-todo-tick="${m.id}|${t.id}" ${done?'checked':''}><span class="grow todo-name" data-todo-edit="${m.id}|${t.id}">${esc(t.name)}${maps.length?` <span class="todo-map" title="${esc(maps.map(p=>p.name).join(', '))} térkép állomása">🗺️</span>`:''}${t.deadline?`<small>📅 ${t.deadline}</small>`:''}</span><span class="todo-actions"><button type="button" class="btn small" data-todo-plan="${m.id}|${t.id}" title="Napitervbe">📅</button><select class="todo-move" data-todo-move="${m.id}|${t.id}" title="Áthelyezés">${LISTS.map(l=>`<option value="${l.key}" ${m.todoList===l.key?'selected':''}>${l.emoji}</option>`).join('')}</select><button type="button" class="btn small" data-todo-del="${m.id}|${t.id}" title="Törlés">🗑️</button></span></div>`;
 }
 function view(){
   const hid=Y.todoHabitId(),h=S().habits.find(x=>x.id===hid);
