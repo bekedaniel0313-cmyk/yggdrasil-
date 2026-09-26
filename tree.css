@@ -123,3 +123,24 @@ input[type=text].emoji-input{font-family:inherit}
 .tree-row.over{outline:2px dashed var(--green);outline-offset:2px}
 .tree-move{display:inline-flex;gap:3px;margin-left:auto;margin-right:6px}
 .tree-move button{padding:2px 7px;font-size:11px;line-height:1.2}
+
+.todo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+@media(max-width:900px){.todo-grid{grid-template-columns:1fr}}
+.todo-col.over{outline:2px dashed var(--green);outline-offset:3px}
+.todo-add{display:flex;gap:6px;margin-bottom:8px}
+.todo-add input{flex:1;padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.todo-list{display:flex;flex-direction:column;gap:4px}
+.todo-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:var(--panel);cursor:grab}
+.todo-row.dragging{opacity:.45}
+.todo-row.done{opacity:.55}
+.todo-row.done .todo-name{text-decoration:line-through}
+.todo-row input[type=checkbox]{width:18px;height:18px;flex:none}
+.todo-name{font-size:14px;cursor:text;min-width:0;word-break:break-word}
+.todo-name small{display:block;color:var(--muted);font-size:11px}
+.todo-actions{display:flex;gap:3px;align-items:center;flex:none;opacity:.55}
+.todo-row:hover .todo-actions{opacity:1}
+.todo-actions .btn{padding:3px 6px;font-size:12px}
+.todo-move{padding:3px 4px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:12px}
+.todo-empty{color:var(--muted);font-size:12px;padding:8px;text-align:center}
+.todo-done{margin-top:8px;font-size:12px;color:var(--muted)}
+.todo-done summary{cursor:pointer;margin-bottom:4px}
