@@ -76,7 +76,8 @@ function list(){
 function detail(){
   const p=project();if(!p){cur='';return list()}
   const ai=activeStageIndex(p);
-  const showIdx=useSingle()?[p.stages.findIndex(s=>s.id===focusStage)>=0?p.stages.findIndex(s=>s.id===focusStage):ai]:p.stages.map((s,i)=>i);
+  const order=p.stages.map((s,i)=>i).filter(i=>!stageComplete(p,i)).concat(p.stages.map((s,i)=>i).filter(i=>stageComplete(p,i)));
+  const showIdx=useSingle()?[p.stages.findIndex(s=>s.id===focusStage)>=0?p.stages.findIndex(s=>s.id===focusStage):ai]:order;
   const done=p.nodes.filter(nodeDone).length,total=p.nodes.length;
   const actions=`<button class="btn" data-go="pmaps">← Térképek</button><button class="btn primary" data-pm-new-node>+ Állomás</button>`;
   let html=Y.top(`${p.emoji} ${esc(p.name)}`,esc(p.description||'Kattints egy állomásra a szerkesztéshez, a körre a kipipáláshoz.'),actions);
@@ -85,7 +86,7 @@ function detail(){
     html+=`<div class="card empty">${!p.lanes.length?'Adj hozzá legalább egy pályát (pl. Ügyintézés, Tanulás, Írás)':''}${!p.lanes.length&&!p.stages.length?' és ':''}${!p.stages.length?'legalább egy stációt':''}.</div>`;
     return html;
   }
-  html+=`<div class="pm-tabs">${p.stages.map((s,i)=>`<button class="pm-tab ${showIdx.includes(i)&&useSingle()?'active':''} ${stageUnlocked(p,i)?'':'locked'}" data-pm-tab="${s.id}">${stageComplete(p,i)?'✅':stageUnlocked(p,i)?(i===ai?'▶':'○'):'🔒'} ${i+1}. ${esc(s.name)}</button>`).join('')}</div>`;
+  html+=`<div class="pm-tabs">${order.map(i=>{const s=p.stages[i];return`<button class="pm-tab ${showIdx.includes(i)&&useSingle()?'active':''} ${stageUnlocked(p,i)?'':'locked'}" data-pm-tab="${s.id}">${stageComplete(p,i)?'✅':stageUnlocked(p,i)?(i===ai?'▶':'○'):'🔒'} ${i+1}. ${esc(s.name)}</button>`}).join('')}</div>`;
   html+=`<div class="card" style="padding:12px"><div class="pm-wrap" id="pmWrap"><div class="pm-grid" style="grid-template-columns:auto repeat(${showIdx.length},minmax(230px,1fr))">`;
   html+=`<div class="pm-corner"></div>`;
   showIdx.forEach(i=>{

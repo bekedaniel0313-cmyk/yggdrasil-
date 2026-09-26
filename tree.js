@@ -103,7 +103,7 @@ function view(){
     if(l.c)return`<div class="status-buttons tree-ticks"><button type="button" data-tree-cat="${l.c.id}" title="Idő könyvelése a kategóriára">⏱ idő</button></div>`;
     return'';
   };
-  const rows=[...lv].reverse().map(l=>`<div class="tree-row ${l.active?'active':l.done?'done':''}"><div class="tree-badge">${l.i+1}</div><div class="grow"><div class="tree-row-head"><b>${NAMES[l.i]}</b><span class="chip">${l.active?'él':l.done?'kész, vár':(l.h||l.c)?'hiányzik':'üres'}</span></div><select data-tree-level="${l.i}">${habitOptions(S().tree.levels[l.i])}</select><div class="tree-row-foot"><p class="tree-status">${progressText(l)}</p>${ticks(l)}</div></div></div>`).join('');
+  const rows=[...lv].reverse().map(l=>`<div class="tree-row ${l.active?'active':l.done?'done':''}" draggable="true" data-tree-drag="${l.i}"><div class="tree-badge" title="Húzd át másik szintre">${l.i+1}</div><div class="grow"><div class="tree-row-head"><b>${NAMES[l.i]}</b><span class="tree-move"><button type="button" class="btn small" data-tree-move="${l.i}|1" title="Feljebb (fontosabb)" ${l.i>=5?'disabled':''}>▲</button><button type="button" class="btn small" data-tree-move="${l.i}|-1" title="Lejjebb" ${l.i<=0?'disabled':''}>▼</button></span><span class="chip">${l.active?'él':l.done?'kész, vár':(l.h||l.c)?'hiányzik':'üres'}</span></div><select data-tree-level="${l.i}">${habitOptions(S().tree.levels[l.i])}</select><div class="tree-row-foot"><p class="tree-status">${progressText(l)}</p>${ticks(l)}</div></div></div>`).join('');
   const d=dailyTier(),got=S().treeAwards[Y.today()];
   const reward=got?`<span class="chip">🎲 mai dobás: ${got.roll}/${got.dice}${got.won?' · +1 darabka':' · semmi'}</span>`:d.dice?`<span class="chip" style="background:#fff4d6;color:#8a5a00">🎲 ma D${d.dice} jár – beváltás a 🧩 Darabkáknál</span>`:`<span class="chip">🎲 4 élő szinttől D6, 5-től D4, 6-tól D2 – csak aznap váltható be</span>`;
   return Y.top('🌳 Yggdrasil',`Minden szint egy szokás vagy egy kategória célja. A fa alulról felfelé kel életre: egy szint csak akkor világít, ha a célja teljesült <i>és</i> az alatta lévő szint is él. Ma ${n} / 6 szint él. ${reward}`)+
@@ -117,6 +117,17 @@ function homeCard(){
 
 function bind(){
   document.querySelectorAll('[data-tree-level]').forEach(sel=>sel.onchange=()=>{S().tree.levels[Number(sel.dataset.treeLevel)]=sel.value;Y.save();Y.render()});
+  const swap=(a,b)=>{const L=S().tree.levels;if(a<0||b<0||a>5||b>5||a===b)return;[L[a],L[b]]=[L[b],L[a]];Y.save();Y.render()};
+  document.querySelectorAll('[data-tree-move]').forEach(b=>b.onclick=()=>{const[i,d]=b.dataset.treeMove.split('|').map(Number);swap(i,i+d)});
+  let dragFrom=null;
+  document.querySelectorAll('[data-tree-drag]').forEach(r=>{
+    r.addEventListener('dragstart',e=>{dragFrom=Number(r.dataset.treeDrag);r.classList.add('dragging');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',String(dragFrom))}catch(x){}});
+    r.addEventListener('dragend',()=>{r.classList.remove('dragging');document.querySelectorAll('.tree-row.over').forEach(x=>x.classList.remove('over'))});
+    r.addEventListener('dragover',e=>{e.preventDefault();r.classList.add('over')});
+    r.addEventListener('dragleave',()=>r.classList.remove('over'));
+    r.addEventListener('drop',e=>{e.preventDefault();const to=Number(r.dataset.treeDrag);if(dragFrom!==null&&dragFrom!==to)swap(dragFrom,to);dragFrom=null});
+  });
+  document.querySelectorAll('.tree-row select, .tree-row button').forEach(el=>el.addEventListener('mousedown',e=>e.stopPropagation()));
   document.querySelectorAll('[data-tree-full]').forEach(b=>b.onclick=()=>{const h=S().habits.find(x=>x.id===b.dataset.treeFull);if(!h)return;const t=Y.today();if(Y.complete(h,t))Y.clearLog(h.id,t);else Y.setLog(h.id,t,Math.max(1,Number(h.target)||1),'full')});
   document.querySelectorAll('[data-tree-min]').forEach(b=>b.onclick=()=>Y.setMinimum(b.dataset.treeMin,Y.today()));
   document.querySelectorAll('[data-tree-cat]').forEach(b=>b.onclick=()=>Y.openCategoryDetail(b.dataset.treeCat));
