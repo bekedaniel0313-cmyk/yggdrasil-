@@ -146,3 +146,6 @@ input[type=text].emoji-input{font-family:inherit}
 .todo-done summary{cursor:pointer;margin-bottom:4px}
 
 .todo-map{font-size:.9em;opacity:.85}
+
+.ot-extra-h{display:block;color:var(--green);font-size:11px}
+.ot-xadd{margin-left:6px;font-size:11px;padding:2px 4px;border-radius:8px;border:1px solid var(--line)}
