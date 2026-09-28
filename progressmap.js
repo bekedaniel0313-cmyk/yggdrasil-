@@ -628,5 +628,6 @@ function bind(){
   if(!resizeBound){resizeBound=true;window.addEventListener('resize',()=>{if(document.getElementById('pmDeps'))drawDeps()})}
 }
 
-return{init,migrate,leave,list,detail,rewards,bind,openGift,unopened,milestoneGiftPending,claimMilestoneGift};
+function navGet(){return{cur,focusStage}}function navSet(o){cur=(o&&o.cur)||'';focusStage=(o&&o.focusStage)||''}
+return{init,migrate,leave,list,detail,rewards,bind,openGift,unopened,milestoneGiftPending,claimMilestoneGift,navGet,navSet};
 })();
