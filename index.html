@@ -187,7 +187,9 @@ function openRoutineDetail(id){currentRoutineId=id;currentView='routineDetail';r
 function openCategoryDetail(id){currentCategoryId=id;currentView='categoryDetail';render();window.scrollTo(0,0)}
 function imgStyle(img){return img?`style="background-image:url('${img}')"`:''}
 function isEditable(date){const n=Math.floor((dateOnly(today())-dateOnly(date))/86400000);return n>=0&&n<=2}
-function rawLog(hid,date){const x=state.logs[hid+'|'+date];if(x&&typeof x==='object')return{value:Number(x.value)||0,status:x.status||((Number(x.value)||0)>0?'full':'none')};const v=Number(x)||0;return{value:v,status:v>0?'full':'none'}}
+function rawLog(hid,date,depth){const x=state.logs[hid+'|'+date];if(x&&typeof x==='object')return{value:Number(x.value)||0,status:x.status||((Number(x.value)||0)>0?'full':'none')};if(x!=null){const v=Number(x)||0;return{value:v,status:v>0?'full':'none'}}const inh=inheritedLog(hid,date,depth||0);return inh||{value:0,status:'none'}}
+// alszokás saját bejegyzés nélkül: a szülő aznapi teljesítését örökli, ha az alszokás akkor már létezett (gyógyszerek/vitaminok visszamenőleg is zöldek)
+function inheritedLog(hid,date,depth){if(depth>4)return null;const h=state.habits.find(x=>x.id===hid);if(!h||!h.parentId||h.measure==='minutes'||h.measure==='bp')return null;if(h.createdAt&&h.createdAt>date)return null;const p=rawLog(h.parentId,date,depth+1);if(p.status!=='full')return null;return{value:Math.max(1,Number(h.target)||1),status:'full',inherited:true}}
 function getLog(hid,date){return rawLog(hid,date).value}
 function getStatus(hid,date){return rawLog(hid,date).status}
 function habitRoutines(hid){return state.routines.filter(r=>(r.items||[]).some(i=>i.habitId===hid))}
