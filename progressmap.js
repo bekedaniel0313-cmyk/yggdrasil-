@@ -25,6 +25,11 @@ function migrate(s){
   s.rewardFragmentPrice=Number(s.rewardFragmentPrice)||5000;
   s.rewards.forEach(r=>{r.price=Number(r.price)||0;r.fragments=Math.max(1,Number(r.fragments)||1);r.collected=Number(r.collected)||0;r.unlockedAt=r.unlockedAt||'';r.boughtAt=r.boughtAt||'';r.image=r.image||(typeof catalogImage==='function'?catalogImage(r.name):'')});
   s.rewardLog=s.rewardLog.filter(l=>l&&l.date).sort((a,b)=>a.date<b.date?1:-1).slice(0,80);
+  if(!Array.isArray(s.pockets)||!s.pockets.length)s.pockets=[{id:'edzes',name:'Edzés',emoji:'🏋️',budget:0},{id:'konyvek',name:'Könyvek',emoji:'📚',budget:0},{id:'tarsas',name:'Társasjátékok',emoji:'🎲',budget:0},{id:'egyeb',name:'Egyéb',emoji:'🧩',budget:0}];
+  if(!s.pockets.some(p=>p&&p.id==='egyeb'))s.pockets.push({id:'egyeb',name:'Egyéb',emoji:'🧩',budget:0});
+  s.pockets.forEach(p=>{p.name=String(p.name||'');p.emoji=p.emoji||'🧩';p.budget=Math.max(0,Number(p.budget)||0)});
+  s.rewards.forEach(r=>{if(!r.pocket||!s.pockets.some(p=>p.id===r.pocket))r.pocket='egyeb'});
+  s.pocketSpend=(s.pocketSpend&&typeof s.pocketSpend==='object'&&!Array.isArray(s.pocketSpend))?s.pocketSpend:{};
 }
 
 let archOpen=false;
@@ -284,15 +289,23 @@ function bindDrag(p){
 /* ---------- gifts & rewards ---------- */
 const fragPrice=()=>S().rewardFragmentPrice||5000;
 function fragmentsFor(price){return Math.max(1,Math.round(price/fragPrice()))}
+/* pockets: every reward sits in one; a pocket may have a monthly Ft budget, above
+   which no darabka may land in that pocket's rewards until next month */
+const monthKey=()=>Y.today().slice(0,7);
+function pocketOf(r){const ps=S().pockets;return ps.find(p=>p.id===r.pocket)||ps.find(p=>p.id==='egyeb')||ps[0]}
+function pocketLimit(p){return p.budget>0?Math.floor(p.budget/fragPrice()):Infinity}
+function pocketSpent(p,mk){const m=S().pocketSpend[mk||monthKey()]||{};return Number(m[p.id])||0}
+function pocketRoom(p){return pocketLimit(p)-pocketSpent(p)}
+function pocketFull(p){return p.budget>0&&pocketRoom(p)<=0}
+function poolDrawable(){return poolOpen().filter(r=>!pocketFull(pocketOf(r)))}
 function draw(count){
   const drops=[],unlocks=[];
   for(let i=0;i<count;i++){
-    const pool=S().rewards.filter(r=>!r.unlockedAt&&r.collected<r.fragments);
+    const pool=poolDrawable();
     if(!pool.length)break;
     const r=pool[Math.floor(Math.random()*pool.length)];
-    r.collected++;
     drops.push(r);
-    if(r.collected>=r.fragments){r.unlockedAt=Y.today();unlocks.push(r)}
+    if(giveTo(r))unlocks.push(r);
   }
   return{drops,unlocks};
 }
@@ -355,23 +368,24 @@ function rollOutcome(){
   if(x<12){const heads=Math.random()<.5;if(window.STREAK)STREAK.logDice({source:'coin',dice:2,roll:heads?2:1,won:heads});return{n:heads?1:0,text:heads?'🪙 Fej – 1 darabka':'🪙 Írás – semmi'}}
   return{n:1,text:'1 darabka'};
 }
-function giveTo(r){r.collected++;const won=r.collected>=r.fragments;if(won)r.unlockedAt=Y.today();return won}
+function giveTo(r){r.collected++;const sp=S().pocketSpend,mk=monthKey(),pid=pocketOf(r).id;sp[mk]=sp[mk]||{};sp[mk][pid]=(Number(sp[mk][pid])||0)+1;const won=r.collected>=r.fragments;if(won)r.unlockedAt=Y.today();return won}
 function poolOpen(){return S().rewards.filter(r=>!r.unlockedAt&&r.collected<r.fragments)}
 // one reward can be the favourite (❤): it is drawn with double weight
-function pickWeighted(){const p=poolOpen(),fav=S().favReward;const w=p.map(r=>r.id===fav?2:1),tot=w.reduce((a,b)=>a+b,0);let x=Math.random()*tot;for(let i=0;i<p.length;i++){x-=w[i];if(x<0)return p[i]}return p[p.length-1]}
+function pickWeighted(){const p=poolDrawable(),fav=S().favReward;const w=p.map(r=>r.id===fav?2:1),tot=w.reduce((a,b)=>a+b,0);let x=Math.random()*tot;for(let i=0;i<p.length;i++){x-=w[i];if(x<0)return p[i]}return p[p.length-1]}
 function revealHtml(r,won,joker){return`<div class="sack-reveal ${won?'win':''}"><div class="sack-img">${r.image?`<img src="${esc(r.image)}" alt="">`:'🎁'}</div><div>${joker?'<span class="chip" style="background:#fff4d6;color:#8a5a00">🃏 joker</span> ':''}<b>${esc(r.name)}</b><div class="chip" style="margin-top:4px">${r.collected} / ${r.fragments} darabka</div>${won?'<div class="pm-drop unlock" style="margin:8px 0 0">✨ Feloldva!</div>':''}</div></div>`}
 function pickReward(){
   return new Promise(res=>{
     const res_=Y.$('sackResult');
-    const pool=poolOpen();
+    const pool=poolDrawable();
     const el=document.createElement('div');el.className='sack-pick';
-    el.innerHTML=`<div class="pm-drop" style="margin:8px 0">🃏 <b>Joker darabka!</b> Válaszd ki, melyik ajándékhoz menjen:</div><div class="sack-pick-list">${pool.map(r=>`<button type="button" class="sack-pick-btn" data-pick="${r.id}">${r.image?`<img src="${esc(r.image)}" alt="">`:'<span class="sack-img" style="width:40px;height:40px;font-size:20px">🎁</span>'}<span><b>${esc(r.name)}</b><small>${r.collected} / ${r.fragments}</small></span></button>`).join('')}</div>`;
+    el.innerHTML=`<div class="pm-drop" style="margin:8px 0">🃏 <b>Joker darabka!</b> Válaszd ki, melyik ajándékhoz menjen:</div><div class="sack-pick-list">${pool.map(r=>`<button type="button" class="sack-pick-btn" data-pick="${r.id}">${r.image?`<img src="${esc(r.image)}" alt="">`:'<span class="sack-img" style="width:40px;height:40px;font-size:20px">🎁</span>'}<span><b>${esc(r.name)}</b><small>${pocketOf(r).emoji} ${r.collected} / ${r.fragments}</small></span></button>`).join('')}</div>`;
     res_.appendChild(el);
     el.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{const r=S().rewards.find(x=>x.id===b.dataset.pick);el.remove();res(r)});
   });
 }
 function sackModal(){
-  const s=S(),n=unopened(),pool=poolOpen();
+  const s=S(),n=unopened(),pool=poolOpen(),drawable=poolDrawable();
+  const fullPockets=s.pockets.filter(p=>pocketFull(p)&&pool.some(r=>pocketOf(r).id===p.id));
   const pend=window.STREAK?STREAK.pendingAll():[];
   const tp=window.TREE?TREE.pendingToday():null;
   const treeRow=tp?`<div class="sack-pend-row"><span class="grow"><b>🌳 Yggdrasil – ma ${tp.n}/6 szint él</b><small>csak ma váltható be</small></span><button type="button" class="btn primary small" data-sack-tree>🎲 D${tp.dice}</button></div>`:'';
@@ -379,24 +393,24 @@ function sackModal(){
   const mileRows=mg.map(x=>`<div class="sack-pend-row"><span class="grow"><b>${esc(x.label)}</b><small>mérföldkő · ${x.m.kind==='merfoldko'?'folyamatcél':'eredménycél'}</small></span><button type="button" class="btn primary small" data-sack-mile="${x.m.id}">${x.fixed?`🎁 +${x.fixed}`:''}${x.dice?` 🎲 D${x.dice}`:''}</button></div>`).join('');
   const mapRows=md.map(x=>`<div class="sack-pend-row"><span class="grow"><b>${esc(x.label)}</b><small>térkép · ${x.kind==='stage'?'stáció':'állomás'}</small></span><button type="button" class="btn primary small" data-sack-map="${x.kind}|${x.p.id}|${x.o.id}">🎲 D${x.dice}</button></div>`).join('');
   const pendHtml=(pend.length||tp||md.length||mg.length)?`<div class="sack-pend"><p class="cal-edit-hint" style="margin:0 0 6px">🔥 Beváltható jutalmak</p>${treeRow}${mapRows}${mileRows}${pend.map(x=>`<div class="sack-pend-row"><span class="grow"><b>${esc(x.h.emoji||'')} ${esc(x.h.name)}</b><small>${x.t.days>=365?'1 év':x.t.days+' nap'}${x.kind?' · 🔁 újrakezdés':''}</small></span><button type="button" class="btn primary small" data-sack-claim="${x.h.id}|${x.t.days}|${x.kind}">${x.t.fixed?`🎁 +${x.t.fixed}`:''}${x.t.dice?` 🎲 D${x.t.dice}`:''}</button></div>`).join('')}<div id="dice" class="dice" style="display:none"></div></div>`:'';
-  const body=`${pendHtml}<div class="sack"><div class="sack-box" id="sackBox">🧳</div><div class="sack-count"><b id="sackN">${n}</b> bontatlan darabka</div><div id="sackOutcome" class="sack-outcome"></div><div id="sackResult"></div></div><p class="vow-note" style="margin:8px 0 0">Egy kibontás: 88% 1 darabka · 5% dupla · 5% pénzfeldobás · 1% hármas · 1% üres. Minden darabka 15% eséllyel <b>joker</b>: azt te teszed oda, ahova akarod. ${pool.length?`${pool.length} ajándék várja.`:'<b>Nincs hiányos ajándék a poolban</b> – vegyél fel újat, a darabkák megmaradnak.'}</p><div class="modalactions"><button class="btn" data-close="pmapModal" id="sackClose">Bezárás</button><button class="btn primary" id="sackOpen" ${n&&pool.length?'':'disabled'}>🎁 Bonts ki egyet</button></div>`;
+  const body=`${pendHtml}<div class="sack"><div class="sack-box" id="sackBox">🧳</div><div class="sack-count"><b id="sackN">${n}</b> bontatlan darabka</div><div id="sackOutcome" class="sack-outcome"></div><div id="sackResult"></div></div><p class="vow-note" style="margin:8px 0 0">Egy kibontás: 88% 1 darabka · 5% dupla · 5% pénzfeldobás · 1% hármas · 1% üres. Minden darabka 15% eséllyel <b>joker</b>: azt te teszed oda, ahova akarod. ${pool.length?(drawable.length?`${drawable.length} ajándék várja.`:'<b>Minden zseb elérte a havi keretét</b> – a darabkák a zsákban maradnak a következő hónapig.'):'<b>Nincs hiányos ajándék a poolban</b> – vegyél fel újat, a darabkák megmaradnak.'}${fullPockets.length&&drawable.length?` <span class="pm-full">Tele e hónapban: ${fullPockets.map(p=>`${p.emoji} ${esc(p.name)}`).join(', ')}.</span>`:''}</p><div class="modalactions"><button class="btn" data-close="pmapModal" id="sackClose">Bezárás</button><button class="btn primary" id="sackOpen" ${n&&drawable.length?'':'disabled'}>🎁 Bonts ki egyet</button></div>`;
   modal('🧩 Darabkák',body,()=>{
-    Y.$('sackClose').onclick=close;
+    Y.$('sackClose').onclick=()=>{close();commit()};
     document.querySelectorAll('[data-sack-mile]').forEach(b=>b.onclick=async()=>{b.disabled=true;const ok=await claimMilestoneGift(b.dataset.sackMile);if(ok!==false)sackModal()});
     document.querySelectorAll('[data-sack-map]').forEach(b=>b.onclick=async()=>{const[kind,pid,id]=b.dataset.sackMap.split('|');b.disabled=true;const ok=await rollMapDice(kind,pid,id);if(ok!==false)sackModal()});
     const tb=document.querySelector('[data-sack-tree]');if(tb)tb.onclick=async()=>{tb.disabled=true;const ok=await TREE.claimToday();if(ok!==false)sackModal()};
     document.querySelectorAll('[data-sack-claim]').forEach(b=>b.onclick=async()=>{const[hid,days,kind]=b.dataset.sackClaim.split('|');b.disabled=true;const ok=await STREAK.claimFromSack(hid,Number(days),kind||'');if(ok!==false)sackModal()});
     Y.$('sackOpen').onclick=async()=>{
-      const btn=Y.$('sackOpen');if(btn.disabled||unopened()<1||!poolOpen().length)return;btn.disabled=true;
+      const btn=Y.$('sackOpen');if(btn.disabled||unopened()<1||!poolDrawable().length)return;btn.disabled=true;
       const box=Y.$('sackBox'),res=Y.$('sackResult'),out=Y.$('sackOutcome');
       res.innerHTML='';out.textContent='';box.className='sack-box shake';
       await new Promise(r=>setTimeout(r,900));
       S().darabkak=unopened()-1;Y.$('sackN').textContent=unopened();
       const o=rollOutcome();out.textContent=o.text;if(window.STREAK)STREAK.logDice({source:'sack',outcome:o.n,text:o.text});
       box.className='sack-box open';box.textContent=o.n?'🧩':'💨';
-      const got=[];
+      const got=[];let left=0;
       for(let i=0;i<o.n;i++){
-        if(!poolOpen().length)break;
+        if(!poolDrawable().length){left=o.n-i;break}
         const joker=Math.random()<.15;
         let r;
         if(joker){r=await pickReward()}else{r=pickWeighted()}
@@ -404,9 +418,10 @@ function sackModal(){
         res.insertAdjacentHTML('beforeend',revealHtml(r,won,joker));
         Y.save();
       }
-      S().rewardLog.unshift({date:Y.today(),text:`Kibontás: ${o.text}${got.length?' → '+got.map(g=>`${g.joker?'🃏 ':''}${g.r.name} (${g.c}/${g.r.fragments})${g.won?' ✨':''}`).join(', '):''}`});
+      if(left){S().darabkak=unopened()+left;Y.$('sackN').textContent=unopened();out.textContent+=` · ${left} visszakerült a zsákba (a zsebek tele vannak)`}
+      S().rewardLog.unshift({date:Y.today(),text:`Kibontás: ${o.text}${got.length?' → '+got.map(g=>`${g.joker?'🃏 ':''}${g.r.name} (${g.c}/${g.r.fragments})${g.won?' ✨':''}`).join(', '):''}${left?` · ${left} vissza a zsákba`:''}`});
       S().rewardLog=S().rewardLog.slice(0,80);Y.save();
-      setTimeout(()=>{box.className='sack-box';box.textContent='🧳';btn.disabled=!(unopened()&&poolOpen().length)},700);
+      setTimeout(()=>{box.className='sack-box';box.textContent='🧳';btn.disabled=!(unopened()&&poolDrawable().length)},700);
     };
   });
 }
@@ -460,9 +475,9 @@ function rewards(){
   const open=R.filter(r=>!r.unlockedAt),done=R.filter(r=>r.unlockedAt&&!r.boughtAt),arch=R.filter(r=>r.unlockedAt&&r.boughtAt);
   const active=R.filter(r=>!r.boughtAt),got=active.reduce((a,r)=>a+(r.unlockedAt?r.fragments:Math.min(r.collected,r.fragments)),0),need=active.reduce((a,r)=>a+r.fragments,0),sack=unopened();
   const counter=`<div class="card pm-count"><div class="pm-count-row"><div><div class="pm-count-big">🧩 ${got} / ${need}</div><div class="pm-count-sub">aktív darabka megvan${sack?` · +${sack} bontatlan a zsákban`:''}</div></div><div class="pm-count-ft"><b>${(got*fragPrice()).toLocaleString('hu-HU')} Ft</b><small>${got} × ${fragPrice().toLocaleString('hu-HU')} Ft félretéve · még ${((need-got)*fragPrice()).toLocaleString('hu-HU')} Ft</small></div></div><div class="bar"><i style="width:${need?Math.round(got/need*100):0}%"></i></div></div>`;
-  const card=r=>`<div class="card pm-rcard ${r.unlockedAt?'unlocked':''} ${r.boughtAt?'bought':''}">${mosaic(r)}<div class="pm-rbody"><h4>${r.boughtAt?'✅ ':r.unlockedAt?'✨ ':''}${esc(r.name)}</h4><div class="chips">${r.price?`<span class="chip">${r.price.toLocaleString('hu-HU')} Ft</span>`:''}<span class="chip">${r.boughtAt?'megvéve · '+r.boughtAt:r.unlockedAt?'feloldva · '+r.unlockedAt:`${r.collected} / ${r.fragments} darabka`}</span></div>${r.unlockedAt?'':`<div class="bar"><i style="width:${Math.round(r.collected/r.fragments*100)}%"></i></div>`}<div class="actions" style="margin-top:8px">${r.unlockedAt&&!r.boughtAt?`<button class="btn small pm-buy" data-pm-bought="${r.id}" title="Megvettem – archívumba kerül">✓ Megvettem</button>`:''}${r.boughtAt?`<button class="btn small" data-pm-unbought="${r.id}" title="Vissza a feloldottak közé">↩</button>`:''}<button class="btn small" data-pm-edit-reward="${r.id}">✏️</button><button class="btn small" data-pm-del-reward="${r.id}">🗑️</button></div></div></div>`;
-  return Y.top('🎁 Ajándékok',`Egy darabka = ${fragPrice().toLocaleString('hu-HU')} Ft. A térképek ajándékcsomagjai véletlen darabkákat adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány darabka kell hozzá.`,`<button class="btn" data-go="results">← Eredmények</button><button class="btn" data-pm-fragprice title="Darabka ára">⚙️ ${fragPrice().toLocaleString('hu-HU')} Ft</button><button class="btn" data-pm-sack>🧩 Darabkák${(unopened()+(window.STREAK?STREAK.pendingCount():0)+(window.TREE&&TREE.pendingToday()?1:0)+mapDicePending().length)?` <span class="chip" style="background:#fff4d6;color:#8a5a00">${unopened()}${(window.STREAK?STREAK.pendingCount():0)+(window.TREE&&TREE.pendingToday()?1:0)+mapDicePending().length?` · 🔥${(window.STREAK?STREAK.pendingCount():0)+(window.TREE&&TREE.pendingToday()?1:0)+mapDicePending().length}`:''}</span>`:''}</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
-  counter+(open.length?`<div class="grid g3 pm-rgrid">${open.map(card).join('')}</div>`:'<div class="card empty">Még nincs ajándék a poolban – vedd fel, mit szeretnél nyerni.</div>')+
+  const card=r=>`<div class="card pm-rcard ${r.unlockedAt?'unlocked':''} ${r.boughtAt?'bought':''}">${mosaic(r)}<div class="pm-rbody"><h4>${r.boughtAt?'✅ ':r.unlockedAt?'✨ ':''}${esc(r.name)}</h4><div class="chips">${r.unlockedAt?`<span class="chip" title="${esc(pocketOf(r).name)}">${esc(pocketOf(r).emoji)} ${esc(pocketOf(r).name)}</span>`:''}${r.price?`<span class="chip">${r.price.toLocaleString('hu-HU')} Ft</span>`:''}<span class="chip">${r.boughtAt?'megvéve · '+r.boughtAt:r.unlockedAt?'feloldva · '+r.unlockedAt:`${r.collected} / ${r.fragments} darabka`}</span></div>${r.unlockedAt?'':`<div class="bar"><i style="width:${Math.round(r.collected/r.fragments*100)}%"></i></div>`}<div class="actions" style="margin-top:8px">${r.unlockedAt&&!r.boughtAt?`<button class="btn small pm-buy" data-pm-bought="${r.id}" title="Megvettem – archívumba kerül">✓ Megvettem</button>`:''}${r.boughtAt?`<button class="btn small" data-pm-unbought="${r.id}" title="Vissza a feloldottak közé">↩</button>`:''}<button class="btn small" data-pm-edit-reward="${r.id}">✏️</button><button class="btn small" data-pm-del-reward="${r.id}">🗑️</button></div></div></div>`;
+  return Y.top('🎁 Ajándékok',`Egy darabka = ${fragPrice().toLocaleString('hu-HU')} Ft. A térképek ajándékcsomagjai véletlen darabkákat adnak a még hiányos ajándékokhoz; a kép annyi mozaikból áll, ahány darabka kell hozzá.`,`<button class="btn" data-go="results">← Eredmények</button><button class="btn" data-pm-fragprice title="Darabka ára">⚙️ ${fragPrice().toLocaleString('hu-HU')} Ft</button><button class="btn" data-pm-pockets title="Zsebek és havi keretek">🗂️ Zsebek</button><button class="btn" data-pm-sack>🧩 Darabkák${(unopened()+(window.STREAK?STREAK.pendingCount():0)+(window.TREE&&TREE.pendingToday()?1:0)+mapDicePending().length)?` <span class="chip" style="background:#fff4d6;color:#8a5a00">${unopened()}${(window.STREAK?STREAK.pendingCount():0)+(window.TREE&&TREE.pendingToday()?1:0)+mapDicePending().length?` · 🔥${(window.STREAK?STREAK.pendingCount():0)+(window.TREE&&TREE.pendingToday()?1:0)+mapDicePending().length}`:''}</span>`:''}</button><button class="btn primary" data-pm-new-reward>+ Új ajándék</button>`)+
+  counter+(open.length?S().pockets.map(p=>{const rs=open.filter(r=>pocketOf(r).id===p.id);if(!rs.length&&!p.budget)return'';const lim=pocketLimit(p),sp=pocketSpent(p),full=pocketFull(p);return`<section class="pm-pocket ${full?'full':''}"><div class="pm-pocket-head"><h3>${esc(p.emoji)} ${esc(p.name)}</h3><span class="pm-pocket-meta">${p.budget?`e hónapban ${sp} / ${lim} darabka · keret ${p.budget.toLocaleString('hu-HU')} Ft${full?' · <b class="pm-full">tele</b>':''}`:`e hónapban ${sp} darabka · nincs havi keret`}</span></div>${p.budget?`<div class="bar pm-pocket-bar"><i style="width:${Math.min(100,Math.round(sp/Math.max(1,lim)*100))}%"></i></div>`:''}${rs.length?`<div class="grid g3 pm-rgrid">${rs.map(card).join('')}</div>`:'<p class="vow-note" style="margin:6px 0 0">Nincs gyűjtés alatt álló ajándék ebben a zsebben.</p>'}</section>`}).join(''):'<div class="card empty">Még nincs ajándék a poolban – vedd fel, mit szeretnél nyerni.</div>')+
   (done.length?`<h3 style="margin:22px 0 10px">✨ Feloldott <small class="pm-h3note">– pipáld ki, ha megvetted</small></h3><div class="grid g3 pm-rgrid">${done.map(card).join('')}</div>`:'')+
   (arch.length?`<details class="pm-archive"${archOpen?' open':''}><summary>📦 Archívum · ${arch.length} megvett ajándék</summary><div class="grid g3 pm-rgrid" style="margin-top:10px">${arch.map(card).join('')}</div></details>`:'')+
   (log.length?`<div class="card" style="margin-top:20px"><h3 style="margin:0 0 8px">Húzások</h3>${log.slice(0,12).map(l=>`<p class="pm-log">${l.date} · ${esc(l.text)}</p>`).join('')}</div>`:'');
@@ -473,16 +488,27 @@ function fragPriceForm(){
   });
 }
 
+function pocketsForm(){
+  let ps=JSON.parse(JSON.stringify(S().pockets));
+  const rows=()=>ps.map(p=>`<div class="pm-pocket-row" data-pid="${p.id}"><input class="pk-emoji" value="${esc(p.emoji)}" maxlength="4" title="Emoji"><input class="pk-name" value="${esc(p.name)}" placeholder="Zseb neve"><div class="pk-budget-wrap"><input class="pk-budget" type="number" min="0" step="1000" value="${p.budget||''}" placeholder="nincs keret"><small>Ft / hó${p.budget?` · ${Math.floor(p.budget/fragPrice())} darabka`:''}</small></div><button type="button" class="btn small" data-pk-del="${p.id}" ${p.id==='egyeb'?'disabled title="Ez az alapértelmezett zseb, nem törölhető"':'title="Zseb törlése"'}>🗑️</button></div>`).join('');
+  modal('🗂️ Zsebek és havi keretek',`<p class="vow-note" style="margin:0 0 10px">Minden ajándék egy zsebbe tartozik. A havi keret (Ft) fölött abba a zsebbe nem mehet több darabka a hónap végéig – egy darabka most ${fragPrice().toLocaleString('hu-HU')} Ft, így keret ÷ ár = havi darabka-limit. Üres keret = nincs korlát.</p><div id="pkRows">${rows()}</div><div class="modalactions" style="justify-content:space-between"><button type="button" class="btn" id="pkAdd">+ Új zseb</button><button class="btn primary" id="pkSave">Mentés</button></div>`,()=>{
+    const read=()=>{ps=[...document.querySelectorAll('#pkRows .pm-pocket-row')].map(row=>({id:row.dataset.pid,emoji:row.querySelector('.pk-emoji').value.trim()||'🧩',name:row.querySelector('.pk-name').value.trim(),budget:Math.max(0,Number(row.querySelector('.pk-budget').value)||0)}));return ps};
+    const bind=()=>{document.querySelectorAll('[data-pk-del]').forEach(b=>b.onclick=()=>{const id=b.dataset.pkDel;if(S().rewards.some(r=>r.pocket===id&&!r.boughtAt)&&!confirm('Ebben a zsebben vannak ajándékok – mentéskor az Egyéb zsebbe kerülnek. Törlöd a zsebet?'))return;read();ps=ps.filter(p=>p.id!==id);Y.$('pkRows').innerHTML=rows();bind()});document.querySelectorAll('#pkRows .pk-budget').forEach(i=>i.oninput=()=>{const b=Math.max(0,Number(i.value)||0);i.nextElementSibling.textContent=`Ft / hó${b?` · ${Math.floor(b/fragPrice())} darabka`:''}`})};
+    bind();
+    Y.$('pkAdd').onclick=()=>{read();ps.push({id:Y.uid(),name:'',emoji:'🧩',budget:0});Y.$('pkRows').innerHTML=rows();bind();const last=document.querySelector('#pkRows .pm-pocket-row:last-child .pk-name');if(last)last.focus()};
+    Y.$('pkSave').onclick=()=>{read();if(ps.some(p=>!p.name))return Y.toast('Minden zsebnek adj nevet.');if(!ps.some(p=>p.id==='egyeb'))ps.push({id:'egyeb',name:'Egyéb',emoji:'🧩',budget:0});S().pockets=ps;S().rewards.forEach(r=>{if(!ps.some(p=>p.id===r.pocket))r.pocket='egyeb'});close();commit()};
+  });
+}
 function rewardForm(r){
-  modal(r?'Ajándék szerkesztése':'Új ajándék',`<div class="formgrid"><div class="field full"><label>Név</label><input id="pmName" value="${esc(r?r.name:'')}" placeholder="pl. Spirit Island kiegészítő"></div><div class="field"><label>Ár (Ft, opcionális)</label><input id="pmPrice" type="number" min="0" step="100" value="${r?r.price:''}"></div><div class="field"><label>Darabkák száma</label><input id="pmFrags" type="number" min="1" value="${r?r.fragments:1}"><p class="vow-note" style="margin:6px 0 0">Ár megadásakor automatikusan: ár ÷ ${fragPrice().toLocaleString('hu-HU')} Ft, kerekítve. Felülírhatod.</p></div><div class="field full"><label>Kép (fájlnév az app mappájában vagy URL)</label><input id="pmImage" value="${esc(r?r.image:'')}" placeholder="pl. ajandek/cascadia.jpg"></div></div><div class="modalactions"><button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
+  modal(r?'Ajándék szerkesztése':'Új ajándék',`<div class="formgrid"><div class="field full"><label>Név</label><input id="pmName" value="${esc(r?r.name:'')}" placeholder="pl. Spirit Island kiegészítő"></div><div class="field"><label>Ár (Ft, opcionális)</label><input id="pmPrice" type="number" min="0" step="100" value="${r?r.price:''}"></div><div class="field"><label>Darabkák száma</label><input id="pmFrags" type="number" min="1" value="${r?r.fragments:1}"><p class="vow-note" style="margin:6px 0 0">Ár megadásakor automatikusan: ár ÷ ${fragPrice().toLocaleString('hu-HU')} Ft, kerekítve. Felülírhatod.</p></div><div class="field"><label>Zseb</label><select id="pmPocket">${S().pockets.map(p=>`<option value="${p.id}" ${(r?r.pocket===p.id:p.id==='egyeb')?'selected':''}>${esc(p.emoji)} ${esc(p.name)}</option>`).join('')}</select></div><div class="field full"><label>Kép (fájlnév az app mappájában vagy URL)</label><input id="pmImage" value="${esc(r?r.image:'')}" placeholder="pl. ajandek/cascadia.jpg"></div></div><div class="modalactions"><button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
     let manual=!!r;
     Y.$('pmPrice').oninput=()=>{if(!manual)Y.$('pmFrags').value=fragmentsFor(num('pmPrice'))};
     Y.$('pmFrags').oninput=()=>{manual=true};
     Y.$('pmSave').onclick=()=>{
       const name=v('pmName');if(!name)return Y.toast('Adj nevet az ajándéknak.');
       const frags=Math.max(1,num('pmFrags'));
-      if(r){r.name=name;r.price=num('pmPrice');r.fragments=frags;r.collected=Math.min(r.collected,frags);r.image=v('pmImage')}
-      else S().rewards.push({id:Y.uid(),name,price:num('pmPrice'),fragments:frags,collected:0,unlockedAt:'',image:v('pmImage')});
+      if(r){r.name=name;r.price=num('pmPrice');r.fragments=frags;r.collected=Math.min(r.collected,frags);r.image=v('pmImage');r.pocket=v('pmPocket')||'egyeb'}
+      else S().rewards.push({id:Y.uid(),name,price:num('pmPrice'),fragments:frags,collected:0,unlockedAt:'',boughtAt:'',pocket:v('pmPocket')||'egyeb',image:v('pmImage')});
       close();commit();
     };
     setTimeout(()=>Y.$('pmName').focus(),0);
@@ -536,7 +562,7 @@ function applyImport(raw){
   pre.forEach(n=>{if(n.done&&!n.doneAt)n.doneAt=Y.today();if(!n.done)n.doneAt=''});
   p.nodes=pre.map(n=>{const deps=n._deps.map(d=>{const t=byName(pre,d)||pre.find(x=>x.id===d);return t&&t.id!==n.id?t.id:''}).filter(Boolean);delete n._deps;return Object.assign(n,{deps:[...new Set(deps)]})});
 
-  (raw.rewards||[]).map(norm).filter(r=>r.name).forEach(r=>{if(byName(s.rewards,r.name))return;const frags=Math.max(1,Number(r.fragments)||(Number(r.price)>0?fragmentsFor(Number(r.price)):1));s.rewards.push({id:Y.uid(),name:String(r.name).trim(),price:Number(r.price)||0,fragments:frags,collected:0,unlockedAt:'',image:r.image!=null?String(r.image):''})});
+  (raw.rewards||[]).map(norm).filter(r=>r.name).forEach(r=>{if(byName(s.rewards,r.name))return;const frags=Math.max(1,Number(r.fragments)||(Number(r.price)>0?fragmentsFor(Number(r.price)):1));s.rewards.push({id:Y.uid(),name:String(r.name).trim(),price:Number(r.price)||0,fragments:frags,collected:0,unlockedAt:'',boughtAt:'',pocket:s.pockets.some(p=>p.id===r.pocket)?r.pocket:'egyeb',image:r.image!=null?String(r.image):''})});
   if(!existing)s.pmaps.push(p);
   return{p,updated:!!existing};
 }
@@ -608,6 +634,7 @@ function bind(){
   q('[data-pm-rewards]').forEach(x=>x.onclick=()=>rewardsPanel());
   q('[data-pm-sack]').forEach(x=>x.onclick=()=>sackModal());
   q('[data-pm-fragprice]').forEach(x=>x.onclick=fragPriceForm);
+  q('#view [data-pm-pockets]').forEach(x=>x.onclick=pocketsForm);
   q('#view [data-pm-new-reward]').forEach(x=>x.onclick=()=>rewardForm(null));
   q('#view [data-pm-edit-reward]').forEach(x=>x.onclick=()=>rewardForm(S().rewards.find(r=>r.id===x.dataset.pmEditReward)));
   q('[data-pm-fav]').forEach(x=>x.onclick=e=>{e.stopPropagation();const s=S();s.favReward=s.favReward===x.dataset.pmFav?'':x.dataset.pmFav;commit();Y.toast(s.favReward?'❤ Kedvenc beállítva – dupla esély':'Kedvenc levéve')});
