@@ -10,6 +10,7 @@ function migrate(s){
   s.treeAwards=s.treeAwards&&typeof s.treeAwards==='object'?s.treeAwards:{};
   s.tree=s.tree||{};
   s.tree.levels=Array.isArray(s.tree.levels)?s.tree.levels.slice(0,6).map(x=>x||''):[];
+  s.tree.diceFrom=/^\d{4}-\d{2}-\d{2}$/.test(String(s.tree.diceFrom||''))?s.tree.diceFrom:'2026-10-03';
   while(s.tree.levels.length<6)s.tree.levels.push('');
 }
 
@@ -33,18 +34,30 @@ function levels(date){
   });
 }
 function activeCount(){return levels().filter(l=>l.active).length}
-// daily reward: 4 living levels → D6, 5 → D4, 6 → D2; must be claimed the same day
-function dailyTier(){const n=activeCount();return{n,dice:n>=6?2:n>=5?4:n>=4?6:0}}
-function pendingToday(){const d=dailyTier(),got=S().treeAwards[Y.today()];return d.dice&&!got?d:null}
+// daily reward: 4 living levels → D6, 5 → D4, 6 → D2. The day is judged at midnight
+// (its final state), the dice becomes rollable the next day and never expires.
+const tierDice=n=>n>=6?2:n>=5?4:n>=4?6:0;
+function dailyTier(){const n=activeCount();return{n,dice:tierDice(n)}}
+function pendingList(){
+  const s=S(),ma=Y.today(),out=[];if(!s.tree.levels.some(Boolean))return out;
+  const lim=new Date();lim.setDate(lim.getDate()-400);
+  let d=new Date(Math.max(new Date(s.tree.diceFrom+'T12:00:00').getTime(),lim.getTime()));
+  for(let g=0;g<400;g++){const iso=d.toLocaleDateString('sv-SE');if(iso>=ma)break;
+    if(!s.treeAwards[iso]){const n=levels(iso).filter(l=>l.active).length,dice=tierDice(n);if(dice)out.push({date:iso,n,dice})}
+    d.setDate(d.getDate()+1)}
+  return out;
+}
+function pendingCount(){return pendingList().length}
+function pendingToday(){return pendingList()[0]||null}
 let rolling=false;
-async function claimToday(){
-  const t=Y.today(),d=pendingToday();if(!d||rolling)return false;rolling=true;
+async function claimDay(iso){
+  const d=pendingList().find(x=>x.date===iso);if(!d||rolling)return false;rolling=true;
   const roll=1+Math.floor(Math.random()*d.dice),won=roll===d.dice;
   await STREAK.animate(d.dice,roll,won);rolling=false;
-  S().treeAwards[t]={n:d.n,dice:d.dice,roll,won};
-  STREAK.logDice({source:'tree',date:t,levels:d.n,dice:d.dice,roll,won});
-  if(won){PMAP.openGift(1,`🌳 Yggdrasil · ${d.n}/6 szint (${t})`,{silent:true});Y.toast('🧩 +1 darabka a zsákba')}
-  else Y.toast(`🎲 ${roll} – ma nem jött össze.`);
+  S().treeAwards[iso]={n:d.n,dice:d.dice,roll,won};
+  STREAK.logDice({source:'tree',date:iso,levels:d.n,dice:d.dice,roll,won});
+  if(won){PMAP.openGift(1,`🌳 Yggdrasil · ${d.n}/6 szint (${iso})`,{silent:true});Y.toast('🧩 +1 darabka a zsákba')}
+  else Y.toast(`🎲 ${roll} – ${iso}: most nem jött össze.`);
   Y.save();return true;
 }
 
@@ -104,8 +117,8 @@ function view(){
     return'';
   };
   const rows=[...lv].reverse().map(l=>`<div class="tree-row ${l.active?'active':l.done?'done':''}" draggable="true" data-tree-drag="${l.i}"><div class="tree-badge" title="Húzd át másik szintre">${l.i+1}</div><div class="grow"><div class="tree-row-head"><b>${NAMES[l.i]}</b><span class="tree-move"><button type="button" class="btn small" data-tree-move="${l.i}|1" title="Feljebb (fontosabb)" ${l.i>=5?'disabled':''}>▲</button><button type="button" class="btn small" data-tree-move="${l.i}|-1" title="Lejjebb" ${l.i<=0?'disabled':''}>▼</button></span><span class="chip">${l.active?'él':l.done?'kész, vár':(l.h||l.c)?'hiányzik':'üres'}</span></div><select data-tree-level="${l.i}">${habitOptions(S().tree.levels[l.i])}</select><div class="tree-row-foot"><p class="tree-status">${progressText(l)}</p>${ticks(l)}</div></div></div>`).join('');
-  const d=dailyTier(),got=S().treeAwards[Y.today()];
-  const reward=got?`<span class="chip">🎲 mai dobás: ${got.roll}/${got.dice}${got.won?' · +1 darabka':' · semmi'}</span>`:d.dice?`<span class="chip" style="background:#fff4d6;color:#8a5a00">🎲 ma D${d.dice} jár – beváltás a 🧩 Darabkáknál</span>`:`<span class="chip">🎲 4 élő szinttől D6, 5-től D4, 6-tól D2 – csak aznap váltható be</span>`;
+  const d=dailyTier(),pend=pendingList();
+  const reward=(d.dice?`<span class="chip" style="background:#fff4d6;color:#8a5a00">🎲 így D${d.dice} jár – éjfélkor dől el, utána bedobható</span>`:`<span class="chip">🎲 4 élő szinttől D6, 5-től D4, 6-tól D2 – a nap éjfélkor záródik</span>`)+(pend.length?` <span class="chip" style="background:#e3f1e0;color:#2f6b3d">🎲 ${pend.length} bedobható kocka vár a 🧩 Darabkáknál</span>`:'');
   return Y.top('🌳 Yggdrasil',`Minden szint egy szokás vagy egy kategória célja. A fa alulról felfelé kel életre: egy szint csak akkor világít, ha a célja teljesült <i>és</i> az alatta lévő szint is él. Ma ${n} / 6 szint él. ${reward}`)+
   `<div class="tree-wrap">${stage(lv)}<div class="tree-right"><div class="card tree-levels">${rows}<p class="vow-note" style="margin:10px 0 0">A sorrend számít: az 1. szint (gyökér) a legfontosabb szokásod legyen – ha az kimarad, az egész fa halvány marad.</p></div>${calendar()}</div></div>`;
 }
@@ -134,5 +147,5 @@ function bind(){
   document.querySelectorAll('[data-tree-cal]').forEach(b=>b.onclick=()=>{const cur=calCur||new Date(Y.today()+'T12:00:00');calCur=new Date(cur.getFullYear(),cur.getMonth()+Number(b.dataset.treeCal),1,12);Y.render()});
 }
 
-return{init,migrate,view,bind,activeCount,dailyTier,pendingToday,claimToday};
+return{init,migrate,view,bind,activeCount,dailyTier,pendingList,pendingCount,pendingToday,claimDay};
 })();
