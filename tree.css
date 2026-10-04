@@ -151,5 +151,6 @@ input[type=text].emoji-input{font-family:inherit}
 .ot-xadd{margin-left:6px;font-size:11px;padding:2px 4px;border-radius:8px;border:1px solid var(--line)}
 
 .todo-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-@media(max-width:1150px){.todo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1400px){.todo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.todo-grid{grid-template-columns:1fr}}
+.todo-row{flex-wrap:wrap}.todo-name{flex:1 1 120px;word-break:normal;overflow-wrap:anywhere}.todo-actions{margin-left:auto}
