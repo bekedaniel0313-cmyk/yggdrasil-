@@ -11,7 +11,8 @@ const NAP = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "péntek"
 
 // ---------- helpers ----------
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Budapest" });
+const DAY_START_MIN = 60; // the app day turns at 01:00 Budapest time
+const today = () => new Date(Date.now() - DAY_START_MIN * 60000).toLocaleDateString("sv-SE", { timeZone: "Europe/Budapest" });
 const dateOnly = (d: string) => new Date(d + "T12:00:00");
 const ds = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "Europe/Budapest" });
 const norm = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();

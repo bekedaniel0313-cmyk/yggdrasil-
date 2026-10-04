@@ -12,7 +12,7 @@ function bucket(key,create){
   if(!m&&create){m={id:Y.uid(),habitId:hid,kind:'feladat',type:'tasks',amount:0,startedAt:Y.today(),name:L.name,deadline:'',xp:0,archived:false,completedAt:'',tasks:[],todoList:key};S().milestones.push(m)}
   return m||null;
 }
-const localToday=()=>new Date().toLocaleDateString('sv-SE');
+const localToday=()=>Y?Y.today():new Date(Date.now()-(window.DAY_START_MIN||0)*60000).toLocaleDateString('sv-SE');
 const luid=()=>Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-6);
 // a new day: the open items of Holnap become today's list; also de-duplicate a task that
 // a sync merge may have left in two lists (the Ma copy wins)
