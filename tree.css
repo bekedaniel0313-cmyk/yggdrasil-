@@ -153,4 +153,4 @@ input[type=text].emoji-input{font-family:inherit}
 .todo-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:1400px){.todo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.todo-grid{grid-template-columns:1fr}}
-.todo-row{flex-wrap:wrap}.todo-name{flex:1 1 120px;word-break:normal;overflow-wrap:anywhere}.todo-actions{margin-left:auto}
+.todo-row{flex-wrap:wrap}.todo-row .grow.todo-name{flex:1 1 150px;min-width:0;word-break:normal;overflow-wrap:anywhere}.todo-row .todo-actions{margin-left:auto}
