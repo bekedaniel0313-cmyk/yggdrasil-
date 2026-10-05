@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yggdrasil V0.8</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="progressmap.css?v=47">
-<link rel="stylesheet" href="tree.css?v=47">
+<link rel="stylesheet" href="progressmap.css?v=48">
+<link rel="stylesheet" href="tree.css?v=48">
 <meta name="theme-color" content="#497a55">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -89,16 +89,16 @@
 <div class="modalbg" id="dayModal"><div class="modal" style="width:min(460px,100%)"><div class="modalhead"><h3 id="dayTitle">Nap szerkesztése</h3><button class="x" data-close="dayModal">✕</button></div><div id="dayBody"></div></div></div>
 <div class="modalbg" id="pmapModal"><div class="modal" style="width:min(640px,100%)"><div class="modalhead"><h3 id="pmapModalTitle">Térkép</h3><button class="x" data-close="pmapModal">✕</button></div><div id="pmapModalBody"></div></div></div>
 <div class="toast" id="toast"></div>
-<script src="sync.js?v=47"></script>
-<script src="progressmap.js?v=47"></script>
-<script src="tree.js?v=47"></script>
-<script src="hubs.js?v=47"></script>
-<script src="catlog.js?v=47"></script>
-<script src="levels.js?v=47"></script>
-<script src="focus.js?v=47"></script>
-<script src="streak.js?v=47"></script>
-<script src="oraterv.js?v=47"></script>
-<script src="todos.js?v=47"></script>
+<script src="sync.js?v=48"></script>
+<script src="progressmap.js?v=48"></script>
+<script src="tree.js?v=48"></script>
+<script src="hubs.js?v=48"></script>
+<script src="catlog.js?v=48"></script>
+<script src="levels.js?v=48"></script>
+<script src="focus.js?v=48"></script>
+<script src="streak.js?v=48"></script>
+<script src="oraterv.js?v=48"></script>
+<script src="todos.js?v=48"></script>
 <script>
 (function(){
 'use strict';
@@ -207,7 +207,7 @@ function childProgress(h,date){const kell=requiredChildren(h);return{kesz:kell.f
 function allChildrenDone(h,date){const p=childProgress(h,date);return p.osszes>0&&p.kesz===p.osszes}
 function recomputeParent(pid,date){const h=state.habits.find(x=>x.id===pid);if(!h||!hasChildren(pid)||h.measure==='minutes')return;const v=Math.max(1,Number(h.target)||1);if(allChildrenDone(h,date))state.logs[pid+'|'+date]={value:v,status:autoStatus(h,v)};else{const cur=state.logs[pid+'|'+date];if(cur&&cur.status==='full'&&Number(cur.value)===v)delete state.logs[pid+'|'+date]}}
 function syncChildren(hid,date,on){const h=state.habits.find(x=>x.id===hid);if(!h||h.measure==='minutes')return;requiredChildren(h).forEach(c=>{if(c.measure==='minutes')return;const cv=Math.max(1,Number(c.target)||1);if(on)state.logs[c.id+'|'+date]={value:cv,status:autoStatus(c,cv)};else{const cur=state.logs[c.id+'|'+date];if(cur&&cur.status==='full'&&Number(cur.value)===cv)delete state.logs[c.id+'|'+date]}})}
-function autoStatus(h,v){if(v<=0)return'none';const mv=Number(h&&h.minimumValue)||0;return mv>0&&v<=mv?'minimum':'full'}
+function autoStatus(h,v){if(v<=0)return'none';const tg=Number(h&&h.target)||0;if(tg>0&&v>=tg)return'full';const mv=Number(h&&h.minimumValue)||0;return mv>0&&v<=mv?'minimum':'full'}
 function setLog(hid,date,value,status='full'){if(!isEditable(date)){alert('Csak a mai nap, tegnap és tegnapelőtt szerkeszthető.');render();return}const v=Math.max(0,Number(value)||0),h=state.habits.find(x=>x.id===hid),st=status==='minimum'?(v>0?'minimum':'none'):autoStatus(h,v);state.logs[hid+'|'+date]={value:v,status:st};syncRoutineTicks(hid,date,st==='full');if(hasChildren(hid))syncChildren(hid,date,st==='full');if(h&&h.parentId)recomputeParent(h.parentId,date);save();render()}
 function setMinimum(hid,date){const h=state.habits.find(x=>x.id===hid);if(!h)return;const v=Math.max(.0001,Number(h.minimumValue)||1);setLog(hid,date,v,'minimum')}
 function clearLog(hid,date){if(!isEditable(date))return;delete state.logs[hid+'|'+date];syncRoutineTicks(hid,date,false);if(hasChildren(hid))syncChildren(hid,date,false);const h=state.habits.find(x=>x.id===hid);if(h&&h.parentId)recomputeParent(h.parentId,date);save();render()}
