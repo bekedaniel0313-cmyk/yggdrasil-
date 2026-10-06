@@ -54,9 +54,9 @@ function calendar(r){
     const iso=new Date(y,m,d,12).toLocaleDateString('sv-SE');
     if(iso>ma){cells+=`<span class="tc-day future">${d}</span>`;continue}
     const s=doneOn(r,iso);if(s!==null)cnt++;if(s)done++;
-    cells+=`<span class="tc-day ${s===true?'tc-6':s===false?'tc-2':'tc-0'} ${iso===ma?'tod':''}" title="${iso} · ${s===true?'kész':s===false?'kimaradt':'pihenő'}">${d}</span>`;
+    cells+=`<span class="tc-day ${s===true?'tc-6':s===false?'tc-2':'tc-0'} ${iso===ma?'tod':''}" data-focus-day="${iso}" title="${iso} · ${s===true?'kész':s===false?'kimaradt':'pihenő'} · kattints a részletekért">${d}</span>`;
   }
-  return`<div class="card"><div class="tree-cal-head"><button type="button" class="btn small" data-focus-cal="-1">‹</button><b>${first.toLocaleDateString('hu-HU',{year:'numeric',month:'long'})}</b><button type="button" class="btn small" data-focus-cal="1">›</button></div><div class="tc-grid">${['H','K','Sze','Cs','P','Szo','V'].map(w=>`<span class="tc-w">${w}</span>`).join('')}${cells}</div><p class="vow-note" style="margin:10px 0 0">${cnt?`${done} / ${cnt} nap teljesítve ebben a hónapban`:''}</p></div>`;
+  return`<div class="card"><div class="tree-cal-head"><button type="button" class="btn small" data-focus-cal="-1">‹</button><b>${first.toLocaleDateString('hu-HU',{year:'numeric',month:'long'})}</b><button type="button" class="btn small" data-focus-cal="1">›</button></div><div class="tc-grid">${['H','K','Sze','Cs','P','Szo','V'].map(w=>`<span class="tc-w">${w}</span>`).join('')}${cells}</div><p class="vow-note" style="margin:10px 0 0">${cnt?`${done} / ${cnt} nap teljesítve ebben a hónapban · `:''}egy napra kattintva látod, miből jött össze</p></div>`;
 }
 function entry(r){
   const t=Y.today();
@@ -81,6 +81,7 @@ function bind(){
   const pick=document.getElementById('focusPick'),chg=document.getElementById('focusChange');
   if(chg)chg.onclick=()=>{const has=!!S().focus.key;if(has&&!confirm(`Biztosan másik tevékenységet teszel fókuszba? A számláló (${focusDays()} nap) újraindul.`))return;pick.style.display='';pick.focus();};
   if(pick)pick.onchange=()=>{const v=pick.value;if(v===S().focus.key){Y.render();return}S().focus.key=v;S().focus.since=v?Y.today():'';calCur=null;Y.save();Y.render()};
+  document.querySelectorAll('[data-focus-day]').forEach(b=>b.onclick=()=>{const r=resolve();if(!r)return;if(r.kind==='cat')Y.categoryDayModal(r.c,b.dataset.focusDay);else Y.habitDayModal(r.h,b.dataset.focusDay)});
   document.querySelectorAll('[data-focus-cal]').forEach(b=>b.onclick=()=>{const cur=calCur||new Date(Y.today()+'T12:00:00');calCur=new Date(cur.getFullYear(),cur.getMonth()+Number(b.dataset.focusCal),1,12);Y.render()});
   document.querySelectorAll('[data-focus-check]').forEach(b=>b.onclick=()=>{const h=S().habits.find(x=>x.id===b.dataset.focusCheck);if(!h)return;const t=Y.today();if(Y.complete(h,t))Y.clearLog(h.id,t);else Y.setLog(h.id,t,Math.max(1,Number(h.target)||1))});
   document.querySelectorAll('[data-focus-inc]').forEach(b=>b.onclick=()=>{const[id,d]=b.dataset.focusInc.split('|');const t=Y.today(),nv=Math.max(0,Y.getLog(id,t)+Number(d));if(nv>0)Y.setLog(id,t,nv);else Y.clearLog(id,t)});
