@@ -35,7 +35,8 @@ function migrate(s){
 let archOpen=false;
 function leave(){cur='';focusStage=''}
 function project(){return S().pmaps.find(p=>p.id===cur)}
-function openProject(id){cur=id;focusStage='';Y.show('pmapDetail')}
+let wrapScroll={};
+function openProject(id){cur=id;focusStage='';delete wrapScroll[id];Y.show('pmapDetail')}
 
 function linkedTask(n){
   if(!n.ref)return null;
@@ -82,7 +83,7 @@ function list(){
 function detail(){
   const p=project();if(!p){cur='';return list()}
   const ai=activeStageIndex(p);
-  const order=p.stages.map((s,i)=>i).filter(i=>!stageComplete(p,i)).concat(p.stages.map((s,i)=>i).filter(i=>stageComplete(p,i)));
+  const order=p.stages.map((s,i)=>i);   // natural order; the view opens scrolled to the active stage
   const showIdx=useSingle()?[p.stages.findIndex(s=>s.id===focusStage)>=0?p.stages.findIndex(s=>s.id===focusStage):ai]:order;
   const done=p.nodes.filter(nodeDone).length,total=p.nodes.length;
   const actions=`<button class="btn" data-go="pmaps">← Térképek</button><button class="btn primary" data-pm-new-node>+ Állomás</button>`;
@@ -100,7 +101,7 @@ function detail(){
     const req=stageNodes(p,s.id).filter(n=>n.required),reqDone=req.filter(nodeDone).length;
     const gift=s.gift?`<button class="pm-gift big ${s.giftOpened?'opened':comp?'ready':''}" data-pm-stage-gift="${s.id}" title="${s.giftOpened?'Már kibontva':comp?'Kibontható!':'Akkor nyílik, ha a stáció minden állomása kész'}">🎁</button>`:'';
     const sdice=s.dice?`<button class="pm-gift big ${s.diceOpened?'opened':comp?'ready':''}" data-pm-dice title="D${s.dice}: ${s.diceOpened?'már eldobva':comp?'dobható a 🧩 Darabkáknál':'a stáció lezárásakor dobható'}">🎲</button>`:'';
-    html+=`<div class="pm-stagehead ${unl?'':'locked'} ${comp?'complete':''}"><h4>${i+1}. ${esc(s.name)} ${gift}${sdice}</h4><div class="pm-status"><span class="chip">${comp?'kész':unl?(i===ai?'aktív':'nyitott'):'zárt'}</span>${req.length?`<span class="chip" title="kötelező a továbblépéshez">⚑ ${reqDone}/${req.length}</span>`:''}<button class="btn small" data-pm-edit-stage="${s.id}">✏️</button></div></div>`;
+    html+=`<div class="pm-stagehead ${unl?'':'locked'} ${comp?'complete':''}" data-pm-stagehead="${s.id}"><h4>${i+1}. ${esc(s.name)} ${gift}${sdice}</h4><div class="pm-status"><span class="chip">${comp?'kész':unl?(i===ai?'aktív':'nyitott'):'zárt'}</span>${req.length?`<span class="chip" title="kötelező a továbblépéshez">⚑ ${reqDone}/${req.length}</span>`:''}<button class="btn small" data-pm-edit-stage="${s.id}">✏️</button></div></div>`;
   });
   p.lanes.forEach(l=>{
     html+=`<div class="pm-lanehead"><span class="pm-swatch" style="background:${l.color}"></span><span class="grow">${esc(l.name)}</span><button class="btn small" data-pm-edit-lane="${l.id}">✏️</button></div>`;
@@ -659,6 +660,9 @@ q('#view [data-pm-del-reward]').forEach(x=>x.onclick=()=>{if(!confirm('Törlöd 
   q('[data-pm-node-gift]').forEach(x=>x.onclick=()=>{const n=p.nodes.find(y=>y.id===x.dataset.pmNodeGift);if(n.giftOpened)return Y.toast('Ezt már kibontottad.');if(!nodeDone(n))return Y.toast('Akkor nyílik, ha az állomás kész.');if(openGift(n.gift,`${p.name} · állomás: ${n.name}`)){n.giftOpened=true;Y.save()}});
   q('[data-pm-stage-gift]').forEach(x=>x.onclick=()=>{const s=p.stages.find(y=>y.id===x.dataset.pmStageGift),i=stageIdx(p,s.id);if(s.giftOpened)return Y.toast('Ezt már kibontottad.');if(!stageComplete(p,i))return Y.toast('Akkor nyílik, ha a stáció minden állomása kész.');if(openGift(s.gift,`${p.name} · stáció lezárva: ${s.name}`)){s.giftOpened=true;Y.save()}});
   bindDrag(p);
+  // open on the active stage (earlier stages stay to the left); keep the user's scroll across re-renders
+  const wrap=document.getElementById('pmWrap');
+  if(wrap){const keep=wrapScroll[p.id];if(keep!=null)wrap.scrollLeft=keep;else{const s=p.stages[activeStageIndex(p)],head=s&&wrap.querySelector(`[data-pm-stagehead="${s.id}"]`),corner=wrap.querySelector('.pm-corner');if(head)wrap.scrollLeft=Math.max(0,head.offsetLeft-(corner?corner.offsetWidth:0))}wrap.onscroll=()=>{wrapScroll[p.id]=wrap.scrollLeft}}
   requestAnimationFrame(drawDeps);
   if(!resizeBound){resizeBound=true;window.addEventListener('resize',()=>{if(document.getElementById('pmDeps'))drawDeps()})}
 }
