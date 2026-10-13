@@ -31,7 +31,7 @@ function view(){
   const head=Y.top('📊 Óraterv','Heti órakeret tevékenységenként – a „megvolt” magától töltődik a naplózott időből.',`<button class="btn" data-go="schedule">← Időbeosztás</button>${o.start?`<button class="btn" id="otMode" title="Váltás a teljes táblázat és az egy hét nézet között">${mode==='week'?`📊 Mind a ${o.weeks} hét`:'📅 Heti nézet'}</button>`:''}<button class="btn ${editing?'primary':''}" id="otEdit">${editing?'✓ Kész':'✏️ Terv szerkesztése'}</button>`);
   if(!o.start)return head+`<div class="card"><h3>Óraterv indítása</h3><div class="catlog-row"><label>1. hét kezdete <input type="date" id="otStart" value="${Y.today()}"></label><label>hetek <input type="number" id="otWeeks" min="1" max="52" value="15" style="width:80px"></label><button class="btn primary small" id="otInit">Indítás</button></div></div>`;
   const wk=Array.from({length:o.weeks},(_,i)=>i);
-  const thead=`<tr><th class="ot-name">Tevékenység</th>${wk.map(i=>`<th class="${i===cur?'ot-curcol':''}" title="${weekDates(i)[0]} – ${weekDates(i)[6]}">${i+1}.</th>`).join('')}<th>Σ terv</th><th>Σ megvolt</th></tr>`;
+  const thead=`<tr><th class="ot-name">Tevékenység</th>${wk.map(i=>`<th class="${i===cur?'ot-curcol':''} ot-wk" data-ot-wk="${i}" title="${weekDates(i)[0]} – ${weekDates(i)[6]} · kattints a napi bontásért">${i+1}.</th>`).join('')}<th>Σ terv</th><th>Σ megvolt</th></tr>`;
   const tot=wk.map(()=>({p:0,a:0}));
   const rows=o.rows.map(r=>{const h=hs.find(x=>x.id===r.habitId);const parent=h&&h.parentId?hs.find(x=>x.id===h.parentId):null;let sp=0,sa=0;
     const cells=wk.map(i=>{const dates=weekDates(i),plan=r.plan[i]||0,act=i<=cur?rowMinutes(r,h,dates)/60:0;sp+=plan;sa+=act;tot[i].p+=plan;tot[i].a+=act;
@@ -48,6 +48,7 @@ function view(){
 function bind(){
   const q=s=>document.querySelectorAll(s);
   const ed=document.getElementById('otEdit');if(ed)ed.onclick=()=>{if(editing){commitEdits()}editing=!editing;Y.render()};
+  q('[data-ot-wk]').forEach(th=>th.onclick=()=>{if(editing)commitEdits();mode='week';wkCur=Number(th.dataset.otWk);Y.render()});
   const md=document.getElementById('otMode');if(md)md.onclick=()=>{if(editing)commitEdits();mode=mode==='week'?'all':'week';try{localStorage.setItem('yggdrasil_otmode',mode)}catch(e){}Y.render()};
   q('[data-ot-week]').forEach(b=>b.onclick=()=>{if(editing)commitEdits();const o=S().oraterv,cur=currentWeek(),base=wkCur==null?Math.max(0,Math.min(cur,o.weeks-1)):wkCur;wkCur=b.dataset.otWeek==='now'?null:Math.max(0,Math.min(o.weeks-1,base+Number(b.dataset.otWeek)));Y.render()});
   const ini=document.getElementById('otInit');if(ini)ini.onclick=()=>{const o=S().oraterv;o.start=document.getElementById('otStart').value||Y.today();o.weeks=Math.max(1,Number(document.getElementById('otWeeks').value)||15);migrate(S());Y.save();Y.render()};
