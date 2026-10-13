@@ -22,7 +22,7 @@ function items(c){
   return out;
 }
 
-function minDate(){const d=new Date(Y.today()+'T12:00:00');d.setDate(d.getDate()-2);return d.toLocaleDateString('sv-SE')}
+function minDate(){return '2025-01-01'}
 function card(c){
   return`<div class="card catlog" data-catlog="${c.id}"><h3>⏱ Idő könyvelése</h3><div class="catlog-row"><input type="number" min="0" step="any" class="catlog-amount" placeholder="pl. 7" inputmode="decimal"><select class="catlog-unit"><option value="60">óra</option><option value="1">perc</option></select><input type="date" class="catlog-date" value="${Y.today()}" min="${minDate()}" max="${Y.today()}"></div><div class="catlog-row"><button class="btn small" data-catlog-general="${c.id}">Általános</button><button class="btn primary small" data-catlog-specific="${c.id}">Specifikus</button></div><div class="catlog-list" style="display:none"></div><p class="vow-note" style="margin:8px 0 0">Általános: az egész idő a kategóriára megy. Specifikus: szétosztod a kategória szokásai, feladatai és eseményei között – a maradék általánosként könyvelődik.</p></div>`;
 }
