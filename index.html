@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yggdrasil V0.8</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="progressmap.css?v=64">
-<link rel="stylesheet" href="tree.css?v=64">
+<link rel="stylesheet" href="progressmap.css?v=66">
+<link rel="stylesheet" href="tree.css?v=66">
 <meta name="theme-color" content="#497a55">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -89,16 +89,16 @@
 <div class="modalbg" id="dayModal"><div class="modal" style="width:min(460px,100%)"><div class="modalhead"><h3 id="dayTitle">Nap szerkesztése</h3><button class="x" data-close="dayModal">✕</button></div><div id="dayBody"></div></div></div>
 <div class="modalbg" id="pmapModal"><div class="modal" style="width:min(640px,100%)"><div class="modalhead"><h3 id="pmapModalTitle">Térkép</h3><button class="x" data-close="pmapModal">✕</button></div><div id="pmapModalBody"></div></div></div>
 <div class="toast" id="toast"></div>
-<script src="sync.js?v=64"></script>
-<script src="progressmap.js?v=64"></script>
-<script src="tree.js?v=64"></script>
-<script src="hubs.js?v=64"></script>
-<script src="catlog.js?v=64"></script>
-<script src="levels.js?v=64"></script>
-<script src="focus.js?v=64"></script>
-<script src="streak.js?v=64"></script>
-<script src="oraterv.js?v=64"></script>
-<script src="todos.js?v=64"></script>
+<script src="sync.js?v=66"></script>
+<script src="progressmap.js?v=66"></script>
+<script src="tree.js?v=66"></script>
+<script src="hubs.js?v=66"></script>
+<script src="catlog.js?v=66"></script>
+<script src="levels.js?v=66"></script>
+<script src="focus.js?v=66"></script>
+<script src="streak.js?v=66"></script>
+<script src="oraterv.js?v=66"></script>
+<script src="todos.js?v=66"></script>
 <script>
 (function(){
 'use strict';
@@ -260,7 +260,15 @@ function failurePenalty(h){const periods=periodsUntilToday(h),reset=h.period==='
 function lateFactor(deadline,completedAt){return deadline&&completedAt&&completedAt>deadline?.5:1}
 function taskBaseXp(t){return Math.max(1,(t.subtasks||[]).length)*10}
 function earnedMilestoneXp(hid){let x=0;state.milestones.filter(m=>m.habitId===hid).forEach(m=>{(m.tasks||[]).forEach(t=>{if(t.completedAt)x+=taskBaseXp(t)*lateFactor(t.deadline,t.completedAt);(t.subtasks||[]).forEach(s=>{if(s.completedAt)x+=10*lateFactor(s.deadline,s.completedAt)})});if(m.completedAt)x+=(Number(m.xp)||0)*lateFactor(m.deadline,m.completedAt)});return Math.round(x)}
-function xpStats(h){const habit=historicalDailyXp(h),tasks=earnedMilestoneXp(h.id),penalty=failurePenalty(h),earned=habit+tasks,current=Math.max(0,earned-penalty);return{habit,tasks,penalty,earned,current}}
+// XP walks the calendar: full days earn 5 (10 after a 14-day run), missed periods cost 5 (3+ in a row) / 10 (14+),
+// but a miss can only take what is there – the balance never goes below 0, so a restart grows at once
+function xpWalk(h){const first=Object.keys(state.logs).filter(k=>k.startsWith(h.id+'|')).map(k=>k.split('|')[1]).sort()[0];const periods=periodsUntilToday((first&&(!h.createdAt||first<h.createdAt))?Object.assign({},h,{createdAt:first}):h);let run=0,miss=0,xp=0,earned=0,lost=0;const now=dateOnly(today());
+ for(const p of periods){const dates=periodDates(h.period,p),last=dates[dates.length-1];
+  dates.forEach(d=>{if(dateOnly(d)>now)return;const st=getStatus(h.id,d);if(st==='full'){run++;const g=run>14?10:5;xp+=g;earned+=g}else if(st==='minimum')run++;else run=0});
+  if(dateOnly(last)>=now)continue;
+  if(protectedPeriod(h,p))miss=0;else{miss++;const l=miss>=14?10:miss>=3?5:0,take=Math.min(xp,l);xp-=take;lost+=take}}
+ return{earned,lost,current:xp}}
+function xpStats(h){const w=xpWalk(h),tasks=earnedMilestoneXp(h.id);return{habit:w.earned,tasks,penalty:w.lost,earned:w.earned+tasks,current:w.current+tasks}}
 function levelInfo(xp){let level=0;while(level<LEVELS.length&&xp>=LEVELS[level])level++;const next=LEVELS[level]??LEVELS.at(-1),prev=level?LEVELS[level-1]:0;return{level:Math.min(10,level+1),next,prev,remaining:Math.max(0,next-xp),pct:next===prev?100:Math.max(0,Math.min(100,(xp-prev)/(next-prev)*100)),max:level>=LEVELS.length}}
 function categoryHabits(cid){return state.habits.filter(h=>h.categoryId===cid)}
 function categoryMinuteHabits(cid){return categoryHabits(cid).filter(h=>h.measure==='minutes')}
