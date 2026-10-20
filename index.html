@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yggdrasil V0.8</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="progressmap.css?v=71">
-<link rel="stylesheet" href="tree.css?v=71">
+<link rel="stylesheet" href="progressmap.css?v=73">
+<link rel="stylesheet" href="tree.css?v=73">
 <meta name="theme-color" content="#497a55">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -89,16 +89,16 @@
 <div class="modalbg" id="dayModal"><div class="modal" style="width:min(460px,100%)"><div class="modalhead"><h3 id="dayTitle">Nap szerkesztése</h3><button class="x" data-close="dayModal">✕</button></div><div id="dayBody"></div></div></div>
 <div class="modalbg" id="pmapModal"><div class="modal" style="width:min(640px,100%)"><div class="modalhead"><h3 id="pmapModalTitle">Térkép</h3><button class="x" data-close="pmapModal">✕</button></div><div id="pmapModalBody"></div></div></div>
 <div class="toast" id="toast"></div>
-<script src="sync.js?v=71"></script>
-<script src="progressmap.js?v=71"></script>
-<script src="tree.js?v=71"></script>
-<script src="hubs.js?v=71"></script>
-<script src="catlog.js?v=71"></script>
-<script src="levels.js?v=71"></script>
-<script src="focus.js?v=71"></script>
-<script src="streak.js?v=71"></script>
-<script src="oraterv.js?v=71"></script>
-<script src="todos.js?v=71"></script>
+<script src="sync.js?v=73"></script>
+<script src="progressmap.js?v=73"></script>
+<script src="tree.js?v=73"></script>
+<script src="hubs.js?v=73"></script>
+<script src="catlog.js?v=73"></script>
+<script src="levels.js?v=73"></script>
+<script src="focus.js?v=73"></script>
+<script src="streak.js?v=73"></script>
+<script src="oraterv.js?v=73"></script>
+<script src="todos.js?v=73"></script>
 <script>
 (function(){
 'use strict';
@@ -465,7 +465,7 @@ let pomoDraft={plan:'',tags:[],breakId:(()=>{try{return localStorage.getItem('yg
 function pomoBreakCredit(){const p=state.pomo;if(!p||!p.breakId)return;const date=today();if(!isEditable(date))return;if(p.breakId.startsWith('text|')){const pid1=p.lastPid||p.planEntryId,e1=pid1?planEntries(date).find(x=>x.id===pid1):null;if(e1){e1.breakTags=e1.breakTags||[];if(!e1.breakTags.includes(p.breakId))e1.breakTags.push(p.breakId)}p.breaks=(p.breaks||0)+1;toast(`☕ ${p.breakId.slice(5)} – megvolt a szünetben`);return}if(p.breakId.startsWith('simple|')){const[,rid,sid]=p.breakId.split('|');state.routineTicks[tickKey(rid,sid,date)]=1;const pid0=p.lastPid||p.planEntryId,e0=pid0?planEntries(date).find(x=>x.id===pid0):null;if(e0){e0.breakTags=e0.breakTags||[];if(!e0.breakTags.includes(p.breakId))e0.breakTags.push(p.breakId)}p.breaks=(p.breaks||0)+1;const bl=breakLabel(p.breakId);toast(`☕ ${bl?bl.emoji+' '+bl.name:'tennivaló'} kipipálva a rutinban`);return}const h=state.habits.find(x=>x.id===p.breakId);if(!h||h.measure==='bp')return;const mins=Math.round(POMO_BREAK/60000),cur=getLog(h.id,date);if(h.measure==='minutes')setLog(h.id,date,cur+mins);else if(h.measure==='count')setLog(h.id,date,cur+1);else if(getStatus(h.id,date)!=='full')setLog(h.id,date,Math.max(1,Number(h.target)||1));const most=new Date(),vegPerc=most.getHours()*60+most.getMinutes();addEntry({kind:'habit',habitId:h.id,date,time:timeLabel(Math.max(0,vegPerc-mins)),minutes:h.measure==='minutes'?mins:h.measure==='count'?1:Math.max(1,Number(h.target)||1),source:'pomodoro-break',planEntryId:''});const pid=p.lastPid||p.planEntryId,e=pid?planEntries(date).find(x=>x.id===pid):null;if(e){e.breakTags=e.breakTags||[];if(!e.breakTags.includes(h.id))e.breakTags.push(h.id)}p.breaks=(p.breaks||0)+1;toast(`☕ ${h.emoji||''} ${h.name} könyvelve a szünetre`)}
 function mapNode(nid){return nid&&window.PMAP&&PMAP.nodeInfo?PMAP.nodeInfo(nid):null}
 function pomoStepsOf(p){if(!p)return[];if(p.type==='map'){const mi=mapNode(p.refId);if(!mi)return[];mi.n.steps=mi.n.steps||[];return mi.n.steps}p.steps=p.steps||[];return p.steps}
-function pomoMapPicker(){const maps=state.pmaps||[];if(!maps.length)return'';const p=maps.find(x=>x.id===pomoMapSel);let inner='';if(p){const ai=PMAP.activeStage(p.id),sid=pomoStageSel||(p.stages[ai]||{}).id||'',nodes=p.nodes.filter(n=>n.stageId===sid&&!n.done);inner=`<select id="pomoStageSel" class="algo-input" style="margin:6px 0">${p.stages.map((s,i)=>`<option value="${s.id}" ${s.id===sid?'selected':''}>${i+1}. ${esc(s.name)}${i===ai?' · aktív':''}</option>`).join('')}</select><div class="list" style="max-height:240px;overflow:auto">${nodes.length?nodes.map(n=>{const l=p.lanes.find(x=>x.id===n.laneId),h=l&&l.habitId?state.habits.find(x=>x.id===l.habitId):null,st=n.steps||[];return`<div class="row habit-click" data-pomo-pick="map|${n.id}" style="border-left:4px solid ${l?l.color:'#ccc'}"><div class="grow"><h4>${esc(n.name)}</h4><p>${esc(l?l.name:'')}${h?` · ${h.emoji||''} ${esc(h.name)}`:' · <i>nincs szokás a pályán</i>'}${st.length?` · ${st.filter(s=>s.done).length}/${st.length} lépés`:''}${n.minutes?` · ${Math.round(n.minutes/60*10)/10} ó`:''}</p></div><span class="chip">▶</span></div>`}).join(''):'<div class="empty" style="padding:12px">Ebben a stációban nincs nyitott állomás.</div>'}</div>`}return`<div class="field full" style="margin-bottom:12px"><label>🗺️ Térkép-állomásra</label><select id="pomoMap" class="algo-input"><option value="">— válassz térképet (vagy lent egy tevékenységet) —</option>${maps.map(m=>`<option value="${m.id}" ${m.id===pomoMapSel?'selected':''}>${m.emoji||'🗺️'} ${esc(m.name)}</option>`).join('')}</select>${inner}</div>`}
+function pomoMapPicker(){const maps=state.pmaps||[];if(!maps.length)return'';const p=maps.find(x=>x.id===pomoMapSel);let inner='';if(p){const ai=PMAP.activeStage(p.id),sid=pomoStageSel||(p.stages[ai]||{}).id||'',nodes=p.nodes.filter(n=>n.stageId===sid&&!n.done);inner=`<select id="pomoStageSel" class="algo-input" style="margin:6px 0">${p.stages.map((s,i)=>`<option value="${s.id}" ${s.id===sid?'selected':''}>${i+1}. ${esc(s.name)}${i===ai?' · aktív':''}</option>`).join('')}</select><div class="list" style="max-height:240px;overflow:auto">${nodes.length?nodes.map(n=>{const l=p.lanes.find(x=>x.id===n.laneId),hid=(l&&l.habitId)||p.habitId||'',h=hid?state.habits.find(x=>x.id===hid):null,st=n.steps||[];return`<div class="row habit-click" data-pomo-pick="map|${n.id}" style="border-left:4px solid ${l?l.color:'#ccc'}"><div class="grow"><h4>${esc(n.name)}</h4><p>${esc(l?l.name:'')}${h?` · ${h.emoji||''} ${esc(h.name)}`:' · <i>nincs szokás a pályán</i>'}${st.length?` · ${st.filter(s=>s.done).length}/${st.length} lépés`:''}${n.minutes?` · ${Math.round(n.minutes/60*10)/10} ó`:''}</p></div><span class="chip">▶</span></div>`}).join(''):'<div class="empty" style="padding:12px">Ebben a stációban nincs nyitott állomás.</div>'}</div>`}return`<div class="field full" style="margin-bottom:12px"><label>🗺️ Térkép-állomásra</label><select id="pomoMap" class="algo-input"><option value="">— válassz térképet (vagy lent egy tevékenységet) —</option>${maps.map(m=>`<option value="${m.id}" ${m.id===pomoMapSel?'selected':''}>${m.emoji||'🗺️'} ${esc(m.name)}</option>`).join('')}</select>${inner}</div>`}
 function pomoPlanMatch(sel){const d=new Date(),mp=d.getHours()*60+d.getMinutes();const fits=e=>{if(e.done)return false;if(sel.type==='habit')return e.habitId===sel.id&&!e.ref;if(sel.type==='event')return e.eventId===sel.id;if(sel.type==='cat')return e.catId===sel.id&&!e.habitId&&!e.eventId;if(sel.type==='mile')return!!e.ref&&e.ref.split('|')[1]===sel.id;if(sel.type==='map')return e.nodeId===sel.id;return false};const c=planEntries(today()).filter(fits).map(e=>({e,start:e.slot*30+(e.offset||0),len:Number(e.minutes)||30})).filter(x=>mp>=x.start-3&&mp<x.start+x.len).sort((a,b)=>a.start-b.start);return c.length?c[0]:null}
 function pomoStart(sel,target=0,planEntryId=''){try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)()}catch(e){}if(!planEntryId){const m=pomoPlanMatch(sel);if(m){planEntryId=m.e.id;target=Math.max(1,Math.ceil(m.len/30));setTimeout(()=>toast(`📅 A tervezett ${timeLabel(m.start)} blokkhoz kapcsolva – nem lesz külön bejegyzés`),50)}}const pl=document.getElementById('pomoPlan');const planTxt=(pl?pl.value:pomoDraft.plan||'').trim();let steps=planTxt.split('\n').map(s=>s.replace(/^[\s\-*•]*(\d+[.)]\s*)?/,'').trim()).filter(Boolean).map(text=>({id:uid(),text,done:false}));let mapId='';if(sel.type==='map'){const mi=mapNode(sel.id);if(!mi)return toast('Ez az állomás már nincs meg.');mapId=mi.p.id;mi.n.steps=mi.n.steps||[];if(steps.length)mi.n.steps=mi.n.steps.concat(steps);steps=[]}
 const ck=sel.type+'|'+sel.id,carry=sel.type==='map'?null:state.pomoCarry[ck];if(carry&&(carry.steps||[]).length){steps=carry.steps.map(s=>({id:uid(),text:s.text,done:false})).concat(steps);delete state.pomoCarry[ck];setTimeout(()=>toast(`↩ Folytatod a múltkori tervezetet (${carry.date}): ${carry.steps.length} lépés`),80)}state.pomo={type:sel.type,refId:sel.id,mapId,phase:'work',endsAt:Date.now()+POMO_WORK,done:0,target,planEntryId,date:today(),plan:(sel.type==='map'?pomoStepsOf({type:'map',refId:sel.id}):steps).map(s=>s.text).join(' · '),steps,tags:pomoDraft.tags.slice(),breakId:pomoDraft.breakId||'',verdict:'',distract:'',startedAt:new Date().toISOString()};pomoDraft={plan:'',tags:[],breakId:pomoDraft.breakId||''};pomoSchedule();currentView='pomodoro';save();render()}

@@ -12,7 +12,7 @@ function migrate(s){
   s.rewards=s.rewards||[];s.rewardLog=s.rewardLog||[];s.darabkak=Number(s.darabkak)||0;s.favReward=typeof s.favReward==='string'?s.favReward:'';
   s.pmaps.forEach(p=>{
     p.emoji=p.emoji||'🗺️';
-    p.description=p.description||'';
+    p.description=p.description||'';p.habitId=p.habitId||'';
     p.lanes=p.lanes||[];p.stages=p.stages||[];p.nodes=p.nodes||[];
     p.lanes.forEach((l,i)=>{if(!l.color)l.color=LANE_COLORS[i%LANE_COLORS.length];l.habitId=l.habitId||''});
     p.stages.forEach(st=>{st.plan=String(st.plan||'');st.gift=Number(st.gift)||0;st.giftOpened=!!st.giftOpened;st.dice=[2,4,6].includes(Number(st.dice))?Number(st.dice):0;st.diceOpened=!!st.diceOpened});
@@ -35,7 +35,7 @@ function migrate(s){
 let archOpen=false;
 /* ---------- nodes as pomodoro targets ---------- */
 const linesToSteps=text=>String(text||'').split('\n').map(x=>x.replace(/^[\s\-*•]*(\d+[.)]\s*)?/,'').trim()).filter(Boolean).map(text=>({id:Y.uid(),text,done:false}));
-function nodeInfo(nid){for(const p of S().pmaps){const n=p.nodes.find(x=>x.id===nid);if(n){const l=p.lanes.find(x=>x.id===n.laneId)||null,s=p.stages.find(x=>x.id===n.stageId)||null;return{p,n,l,s,habitId:l&&l.habitId?l.habitId:'',done:nodeDone(n)}}}return null}
+function nodeInfo(nid){for(const p of S().pmaps){const n=p.nodes.find(x=>x.id===nid);if(n){const l=p.lanes.find(x=>x.id===n.laneId)||null,s=p.stages.find(x=>x.id===n.stageId)||null;return{p,n,l,s,habitId:(l&&l.habitId)||p.habitId||'',done:nodeDone(n)}}}return null}
 function tickNode(nid){const i=nodeInfo(nid);if(!i)return false;if(nodeDone(i.n))return true;tick(i.p,i.n);return true}
 function activeStage(pid){const p=S().pmaps.find(x=>x.id===pid);return p?activeStageIndex(p):0}
 function leave(){cur='';focusStage=''}
@@ -171,11 +171,11 @@ function taskOptions(selected){
 }
 
 function projectForm(p){
-  modal(p?'Projekt szerkesztése':'Új projekt',`<div class="formgrid"><div class="field"><label>Név</label><input id="pmName" value="${esc(p?p.name:'')}" placeholder="pl. Diplomamunka" required></div><div class="field"><label>Emoji</label><input id="pmEmoji" value="${esc(p?p.emoji:'🗺️')}" maxlength="12"></div><div class="field full"><label>Leírás</label><textarea id="pmDesc">${esc(p?p.description:'')}</textarea></div></div><div class="modalactions">${p?'<button class="btn" id="pmDelete">🗑️ Törlés</button>':''}<button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
+  modal(p?'Projekt szerkesztése':'Új projekt',`<div class="formgrid"><div class="field"><label>Név</label><input id="pmName" value="${esc(p?p.name:'')}" placeholder="pl. Diplomamunka" required></div><div class="field"><label>Emoji</label><input id="pmEmoji" value="${esc(p?p.emoji:'🗺️')}" maxlength="12"></div><div class="field full"><label>Leírás</label><textarea id="pmDesc">${esc(p?p.description:'')}</textarea></div><div class="field full"><label>Szokás a térképhez (alapértelmezés)</label><select id="pmProjHabit"><option value="">— nincs —</option>${S().habits.map(h=>`<option value="${h.id}" ${p&&p.habitId===h.id?'selected':''}>${h.parentId?'↳ ':''}${h.emoji||''} ${esc(h.name)}</option>`).join('')}</select><p class="vow-note" style="margin:6px 0 0">Minden pálya ezt használja, amelyiknél nincs saját szokás beállítva. A pomodoro az állomásról erre könyveli a perceket.</p></div></div><div class="modalactions">${p?'<button class="btn" id="pmDelete">🗑️ Törlés</button>':''}<button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
     Y.$('pmSave').onclick=()=>{
       const name=v('pmName');if(!name)return Y.toast('Adj nevet a projektnek.');
-      if(p){p.name=name;p.emoji=v('pmEmoji')||'🗺️';p.description=v('pmDesc')}
-      else{const np={id:Y.uid(),name,emoji:v('pmEmoji')||'🗺️',description:v('pmDesc'),createdAt:Y.today(),lanes:[],stages:[],nodes:[]};S().pmaps.push(np);cur=np.id;Y.setView('pmapDetail')}
+      if(p){p.name=name;p.emoji=v('pmEmoji')||'🗺️';p.description=v('pmDesc');p.habitId=v('pmProjHabit')}
+      else{const np={id:Y.uid(),name,emoji:v('pmEmoji')||'🗺️',description:v('pmDesc'),habitId:v('pmProjHabit'),createdAt:Y.today(),lanes:[],stages:[],nodes:[]};S().pmaps.push(np);cur=np.id;Y.setView('pmapDetail')}
       close();commit();
     };
     if(p)Y.$('pmDelete').onclick=()=>deleteProject(p.id);
@@ -189,7 +189,7 @@ function deleteProject(id){
 
 function laneForm(p,l){
   const color=l?l.color:LANE_COLORS[p.lanes.length%LANE_COLORS.length];
-  modal(l?'Pálya szerkesztése':'Új pálya',`<div class="formgrid"><div class="field"><label>Név</label><input id="pmName" value="${esc(l?l.name:'')}" placeholder="pl. Tanulás"></div><div class="field"><label>Szín</label><input id="pmColor" type="color" value="${color}" style="height:44px;padding:4px;cursor:pointer"></div><div class="field full"><label>Szokás / tevékenység a pályához</label><select id="pmLaneHabit"><option value="">— nincs (az idő csak a térképen gyűlik) —</option>${S().habits.map(h=>`<option value="${h.id}" ${l&&l.habitId===h.id?'selected':''}>${h.parentId?'↳ ':''}${h.emoji||''} ${esc(h.name)}</option>`).join('')}</select><p class="vow-note" style="margin:6px 0 0">A pálya állomásain indított pomodoro erre a szokásra könyveli a perceket, a naptárban a térkép és az állomás nevével.</p></div></div><div class="modalactions">${l?'<button class="btn" id="pmDelete">🗑️ Törlés</button>':''}<button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
+  modal(l?'Pálya szerkesztése':'Új pálya',`<div class="formgrid"><div class="field"><label>Név</label><input id="pmName" value="${esc(l?l.name:'')}" placeholder="pl. Tanulás"></div><div class="field"><label>Szín</label><input id="pmColor" type="color" value="${color}" style="height:44px;padding:4px;cursor:pointer"></div><div class="field full"><label>Szokás / tevékenység a pályához</label><select id="pmLaneHabit"><option value="">— nincs (a térkép alapértelmezett szokása, ha van) —</option>${S().habits.map(h=>`<option value="${h.id}" ${l&&l.habitId===h.id?'selected':''}>${h.parentId?'↳ ':''}${h.emoji||''} ${esc(h.name)}</option>`).join('')}</select><p class="vow-note" style="margin:6px 0 0">A pálya állomásain indított pomodoro erre a szokásra könyveli a perceket, a naptárban a térkép és az állomás nevével.</p></div></div><div class="modalactions">${l?'<button class="btn" id="pmDelete">🗑️ Törlés</button>':''}<button class="btn primary" id="pmSave">Mentés</button></div>`,()=>{
     Y.$('pmSave').onclick=()=>{const name=v('pmName');if(!name)return Y.toast('Adj nevet a pályának.');if(l){l.name=name;l.color=v('pmColor');l.habitId=v('pmLaneHabit')}else p.lanes.push({id:Y.uid(),name,color:v('pmColor'),habitId:v('pmLaneHabit')});close();commit()};
     if(l)Y.$('pmDelete').onclick=()=>{const ns=p.nodes.filter(n=>n.laneId===l.id).length;if(!confirm(ns?`Törlöd a pályát és a rajta lévő ${ns} állomást?`:'Törlöd a pályát?'))return;removeNodes(p,n=>n.laneId===l.id);p.lanes=p.lanes.filter(x=>x.id!==l.id);close();commit()};
     setTimeout(()=>Y.$('pmName').focus(),0);
