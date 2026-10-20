@@ -532,8 +532,8 @@ function exportProject(p){
   return{
     id:p.id,name:p.name,emoji:p.emoji,description:p.description,
     lanes:p.lanes.map(l=>({id:l.id,name:l.name,color:l.color})),
-    stages:p.stages.map(s=>({id:s.id,name:s.name,gift:s.gift,giftOpened:s.giftOpened,dice:s.dice||undefined,diceOpened:s.diceOpened||undefined})),
-    nodes:p.nodes.map(n=>({id:n.id,name:n.name,lane:lane(n.laneId),stage:stage(n.stageId),required:n.required,target:n.target,val:n.val,done:nodeDone(n),gift:n.gift,giftOpened:n.giftOpened,dice:n.dice||undefined,diceOpened:n.diceOpened||undefined,deps:n.deps.map(node).filter(Boolean),ref:n.ref||undefined}))
+    stages:p.stages.map(s=>({id:s.id,name:s.name,gift:s.gift,giftOpened:s.giftOpened,dice:s.dice||undefined,diceOpened:s.diceOpened||undefined,plan:s.plan||undefined})),
+    nodes:p.nodes.map(n=>({id:n.id,name:n.name,lane:lane(n.laneId),stage:stage(n.stageId),required:n.required,target:n.target,val:n.val,done:nodeDone(n),gift:n.gift,giftOpened:n.giftOpened,dice:n.dice||undefined,diceOpened:n.diceOpened||undefined,deps:n.deps.map(node).filter(Boolean),ref:n.ref||undefined,steps:(n.steps||[]).length?n.steps.map(s=>(s.done?'✓ ':'')+s.text):undefined}))
   };
 }
 
@@ -558,7 +558,7 @@ function applyImport(raw){
   const keep=(list,item)=>(item.id&&list.find(x=>x.id===item.id))||byName(list,item.name);
 
   p.lanes=(raw.lanes||[]).map(norm).filter(l=>l.name).map((l,i)=>{const o=keep(old.lanes,l)||{};return{id:o.id||l.id||Y.uid(),name:String(l.name).trim(),color:l.color||o.color||LANE_COLORS[i%LANE_COLORS.length]}});
-  p.stages=(raw.stages||[]).map(norm).filter(st=>st.name).map(st=>{const o=keep(old.stages,st)||{};return{id:o.id||st.id||Y.uid(),name:String(st.name).trim(),gift:Math.max(0,Number(st.gift)||0),giftOpened:st.giftOpened!=null?!!st.giftOpened:!!o.giftOpened,dice:[2,4,6].includes(Number(st.dice))?Number(st.dice):0,diceOpened:st.diceOpened!=null?!!st.diceOpened:!!o.diceOpened}});
+  p.stages=(raw.stages||[]).map(norm).filter(st=>st.name).map(st=>{const o=keep(old.stages,st)||{};return{id:o.id||st.id||Y.uid(),name:String(st.name).trim(),gift:Math.max(0,Number(st.gift)||0),giftOpened:st.giftOpened!=null?!!st.giftOpened:!!o.giftOpened,dice:[2,4,6].includes(Number(st.dice))?Number(st.dice):0,diceOpened:st.diceOpened!=null?!!st.diceOpened:!!o.diceOpened,plan:st.plan!=null?String(st.plan):(o.plan||'')}});
   if(!p.lanes.length||!p.stages.length)throw new Error('Legalább egy pálya ("lanes") és egy stáció ("stages") kell.');
 
   const nodesRaw=(raw.nodes||[]).map(norm).filter(n=>n.name);
@@ -566,7 +566,7 @@ function applyImport(raw){
     const lane=byName(p.lanes,n.lane)||p.lanes.find(l=>l.id===n.lane)||p.lanes[0];
     const stage=byName(p.stages,n.stage)||p.stages.find(st=>st.id===n.stage)||p.stages[0];
     const o=keep(old.nodes,n)||{};
-    return{id:o.id||n.id||Y.uid(),name:String(n.name).trim(),laneId:lane.id,stageId:stage.id,required:n.required!=null?!!n.required:!!o.required,target:Math.max(0,Number(n.target)||0),val:n.val!=null?Math.max(0,Number(n.val)||0):(o.val||0),done:n.done!=null?!!n.done:!!o.done,doneAt:o.doneAt||'',gift:Math.max(0,Number(n.gift)||0),giftOpened:n.giftOpened!=null?!!n.giftOpened:!!o.giftOpened,dice:[2,4,6].includes(Number(n.dice))?Number(n.dice):0,diceOpened:n.diceOpened!=null?!!n.diceOpened:!!o.diceOpened,ref:n.ref!=null?String(n.ref):(o.ref||''),_deps:Array.isArray(n.deps)?n.deps:[]};
+    return{id:o.id||n.id||Y.uid(),name:String(n.name).trim(),laneId:lane.id,stageId:stage.id,required:n.required!=null?!!n.required:!!o.required,target:Math.max(0,Number(n.target)||0),val:n.val!=null?Math.max(0,Number(n.val)||0):(o.val||0),done:n.done!=null?!!n.done:!!o.done,doneAt:o.doneAt||'',gift:Math.max(0,Number(n.gift)||0),giftOpened:n.giftOpened!=null?!!n.giftOpened:!!o.giftOpened,dice:[2,4,6].includes(Number(n.dice))?Number(n.dice):0,diceOpened:n.diceOpened!=null?!!n.diceOpened:!!o.diceOpened,ref:n.ref!=null?String(n.ref):(o.ref||''),minutes:Number(o.minutes)||0,steps:Array.isArray(n.steps)?n.steps.map(x=>{const raw=typeof x==='string'?x:String(x&&x.text||''),done=typeof x==='object'&&x?!!x.done:/^[✓✔☑]\s*/.test(raw),text=raw.replace(/^[✓✔☑]\s*/,'').replace(/^[\s\-*•]*(\d+[.)]\s*)?/,'').trim();const old=(o.steps||[]).find(y=>y.text===text);return old?Object.assign(old,{done:done||old.done}):{id:Y.uid(),text,done}}).filter(x=>x.text):(o.steps||[]),_deps:Array.isArray(n.deps)?n.deps:[]};
   });
   pre.forEach(n=>{if(n.done&&!n.doneAt)n.doneAt=Y.today();if(!n.done)n.doneAt=''});
   p.nodes=pre.map(n=>{const deps=n._deps.map(d=>{const t=byName(pre,d)||pre.find(x=>x.id===d);return t&&t.id!==n.id?t.id:''}).filter(Boolean);delete n._deps;return Object.assign(n,{deps:[...new Set(deps)]})});
@@ -577,7 +577,7 @@ function applyImport(raw){
 }
 
 function promptText(){
-  return `Segíts megtervezni egy "progress map"-et az Yggdrasil appomhoz. A térkép egy PROJEKT, amiben vízszintes PÁLYÁK (lanes – párhuzamos munkaszálak, pl. Ügyintézés, Tanulás, Írás) és függőleges STÁCIÓK (stages – egymást követő szakaszok) vannak. Az ÁLLOMÁSOK (nodes) egy pálya és egy stáció metszetében ülnek. A "required": true állomások zárják a következő stációt (amíg nincsenek kész, a következő stáció zárt); a nem kötelezők csúszhatnak. Egy állomás függhet másik állomásoktól ("deps", névvel hivatkozva, akár másik pályáról). Az ajándékcsomagok ("gift", darabkák száma) állomásra vagy stációra tehetők; a kibontott csomag a közös ajándék-poolból ad véletlen darabkákat. Új ajándékokat opcionálisan a "rewards" listában javasolhatsz (ár alapján bomlanak darabkákra).
+  return `Segíts megtervezni egy "progress map"-et az Yggdrasil appomhoz. A térkép egy PROJEKT, amiben vízszintes PÁLYÁK (lanes – párhuzamos munkaszálak, pl. Ügyintézés, Tanulás, Írás) és függőleges STÁCIÓK (stages – egymást követő szakaszok) vannak. Az ÁLLOMÁSOK (nodes) egy pálya és egy stáció metszetében ülnek. A "required": true állomások zárják a következő stációt (amíg nincsenek kész, a következő stáció zárt); a nem kötelezők csúszhatnak. Egy állomás függhet másik állomásoktól ("deps", névvel hivatkozva, akár másik pályáról). Az ajándékcsomagok ("gift", darabkák száma) állomásra vagy stációra tehetők; a kibontott csomag a közös ajándék-poolból ad véletlen darabkákat. Új ajándékokat opcionálisan a "rewards" listában javasolhatsz (ár alapján bomlanak darabkákra). Egy állomáshoz adhatsz TERVEZETET is ("steps": rövid lépések listája, 3–6 sor) – ezt a pomodoro oldalon látom és pipálom, miközben az állomáson dolgozom; egy stációhoz pedig "plan" sablont (soronként egy lépés, szöveg), amit az állomásai örökölnek.
 
 Beszéljük meg először a tartalmat (milyen pályák, hány stáció, mik a kötelező lépések, mik függenek mitől), aztán a végén add ki a teljes térképet EGYETLEN JSON kódblokkban, pontosan ebben a formában, magyar nevekkel:
 
@@ -589,11 +589,13 @@ Beszéljük meg először a tartalmat (milyen pályák, hány stáció, mik a k�
   "lanes": ["Ügyintézés", "Tanulás", "Írás"],
   "stages": [
     {"name": "Alapozás", "gift": 2},
-    {"name": "Kutatás", "gift": 3}
+    {"name": "Kutatás", "gift": 3, "plan": "forrás átnézése
+jegyzet
+összefoglaló"}
   ],
   "nodes": [
     {"name": "Témavezető email", "lane": "Ügyintézés", "stage": "Alapozás", "required": true},
-    {"name": "Szakirodalom 10 cikk", "lane": "Tanulás", "stage": "Alapozás", "required": false, "target": 10},
+    {"name": "Szakirodalom 10 cikk", "lane": "Tanulás", "stage": "Alapozás", "required": false, "target": 10, "steps": ["keresés a Scholarban", "10 cikk kiválasztása", "absztraktok elolvasása", "jegyzet a vaultba"]},
     {"name": "Kísérleti terv", "lane": "Írás", "stage": "Kutatás", "required": true, "deps": ["Témavezető email"], "gift": 1}
   ],
   "rewards": [
