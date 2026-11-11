@@ -37,6 +37,8 @@ let archOpen=false;
 const linesToSteps=text=>String(text||'').split('\n').map(x=>x.replace(/^[\s\-*•]*(\d+[.)]\s*)?/,'').trim()).filter(Boolean).map(text=>({id:Y.uid(),text,done:false}));
 function nodeInfo(nid){for(const p of S().pmaps){const n=p.nodes.find(x=>x.id===nid);if(n){const l=p.lanes.find(x=>x.id===n.laneId)||null,s=p.stages.find(x=>x.id===n.stageId)||null;return{p,n,l,s,habitId:(l&&l.habitId)||p.habitId||'',done:nodeDone(n)}}}return null}
 function tickNode(nid){const i=nodeInfo(nid);if(!i)return false;if(nodeDone(i.n))return true;tick(i.p,i.n);return true}
+/* Outside changes (the inbox): set a station done or open. True only if it really changed. */
+function setNodeDone(nid,done){const i=nodeInfo(nid);if(!i||nodeDone(i.n)===!!done)return false;tick(i.p,i.n);return nodeDone(i.n)===!!done}
 function activeStage(pid){const p=S().pmaps.find(x=>x.id===pid);return p?activeStageIndex(p):0}
 function leave(){cur='';focusStage=''}
 function project(){return S().pmaps.find(p=>p.id===cur)}
@@ -677,5 +679,5 @@ q('#view [data-pm-del-reward]').forEach(x=>x.onclick=()=>{if(!confirm('Törlöd 
 }
 
 function navGet(){return{cur,focusStage}}function navSet(o){cur=(o&&o.cur)||'';focusStage=(o&&o.focusStage)||''}
-return{init,migrate,leave,list,detail,rewards,bind,openGift,unopened,milestoneGiftPending,claimMilestoneGift,navGet,navSet,nodeInfo,tickNode,activeStage,linesToSteps};
+return{init,migrate,leave,list,detail,rewards,bind,openGift,unopened,milestoneGiftPending,claimMilestoneGift,navGet,navSet,nodeInfo,tickNode,setNodeDone,activeStage,linesToSteps};
 })();

@@ -411,3 +411,8 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# The MCP bridge checks the key in its own address (the claude.ai connector and FocusGate send no
+# Supabase login), so the gateway must not ask for a JWT. Kept here so a plain deploy cannot switch it on.
+[functions.yggdrasil-mcp]
+verify_jwt = false

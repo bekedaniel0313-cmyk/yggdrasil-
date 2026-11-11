@@ -1,9 +1,15 @@
 // Yggdrasil MCP bridge – remote MCP server (Streamable HTTP, JSON responses)
 // URL: /functions/v1/yggdrasil-mcp/<MCP_TOKEN>
+//
+// FocusGate (the local "working now" app) uses the same address with its own
+// token, /functions/v1/yggdrasil-mcp/<FG_TOKEN>. That token opens only the two
+// fg/* methods below: read the day plan and the maps as data, and queue ticks
+// and finished rounds in the app's inbox.
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TOKEN = Deno.env.get("MCP_TOKEN") ?? "";
+const FG_TOKEN = Deno.env.get("FG_TOKEN") ?? "";
 const USER_ID = Deno.env.get("YGG_USER_ID") ?? "";
 
 type Json = Record<string, any>;
@@ -201,6 +207,73 @@ function setPriorities(s: Json, a: Json) {
   return `Napi teendők ${date}: ${done.join(" · ") || "(egy sem)"}`;
 }
 
+// ---------- FocusGate door (plain methods, not MCP tools) ----------
+function nodeOf(s: Json, nid: string) { for (const p of (s.pmaps || [])) { const n = (p.nodes || []).find((x: Json) => x.id === nid); if (n) return { p, n }; } return null; }
+function nodeIsDone(s: Json, n: Json) { if (n.ref) { const [mid, tid] = String(n.ref).split("|"); const m = (s.milestones || []).find((x: Json) => x.id === mid); const t = m && (m.tasks || []).find((x: Json) => x.id === tid); if (t) return !!t.completedAt; } return !!n.done; }
+/** The day plan and the maps as data. Ticks that still wait in the inbox are shown as done already,
+ *  so FocusGate sees its own changes before the app has merged them. */
+function fgSnapshot(s: Json, date: string) {
+  const nodeP = new Map<string, boolean>(), stepP = new Map<string, boolean>(), planP = new Map<string, boolean>();
+  (s.claudeInbox || []).forEach((it: Json) => {
+    if (it.type === "node_toggle") nodeP.set(it.nodeId, !!it.done);
+    else if (it.type === "step_toggle") stepP.set(it.nodeId + "|" + it.stepId, !!it.done);
+    else if (it.type === "plan_toggle" && it.date === date) planP.set(it.entryId, !!it.done);
+  });
+  const plan = ((s.dayplan || {})[date] || []).slice().sort((a: Json, b: Json) => (a.slot * 30 + (a.offset || 0)) - (b.slot * 30 + (b.offset || 0))).map((e: Json) => ({
+    id: e.id, start: e.slot * 30 + (e.offset || 0), minutes: Number(e.minutes) || 30, label: planLabel(s, e),
+    habitId: e.habitId || "", catId: e.catId || "", eventId: e.eventId || "", nodeId: e.nodeId || "",
+    done: planP.has(e.id) ? !!planP.get(e.id) : planDone(s, e),
+  }));
+  const maps = (s.pmaps || []).map((p: Json) => ({
+    id: p.id, name: p.name, emoji: p.emoji || "🗺️", habitId: p.habitId || "",
+    lanes: (p.lanes || []).map((l: Json) => ({ id: l.id, name: l.name, color: l.color || "", habitId: l.habitId || "" })),
+    stages: (p.stages || []).map((st: Json) => ({ id: st.id, name: st.name })),
+    nodes: (p.nodes || []).map((n: Json) => ({
+      id: n.id, name: n.name, laneId: n.laneId, stageId: n.stageId, required: !!n.required, minutes: Number(n.minutes) || 0,
+      done: nodeP.has(n.id) ? !!nodeP.get(n.id) : nodeIsDone(s, n),
+      steps: (n.steps || []).filter((x: Json) => x && x.text).map((x: Json) => ({ id: x.id, text: x.text, done: stepP.has(n.id + "|" + x.id) ? !!stepP.get(n.id + "|" + x.id) : !!x.done })),
+    })),
+  }));
+  const habits = (s.habits || []).map((h: Json) => ({ id: h.id, name: h.name, emoji: h.emoji || "" }));
+  return { date, updatedAt: s.updatedAt || "", plan, maps, habits, pending: (s.claudeInbox || []).length };
+}
+/** Ticks and finished rounds from FocusGate, queued for the app like every other outside change.
+ *  Each op carries a key made by FocusGate; it becomes the inbox id, so a repeated send books nothing twice. */
+function fgOps(s: Json, a: Json) {
+  const ops: Json[] = Array.isArray(a.ops) ? a.ops.slice(0, 50) : []; if (!ops.length) throw new Error("No ops.");
+  s.claudeInbox = s.claudeInbox || []; const at = new Date().toISOString(); const results: string[] = [];
+  for (const o of ops) {
+    if (!o || typeof o !== "object") { results.push("skip: unknown op"); continue; }
+    const kind = String(o.op || ""); const key = /^[a-z0-9]{8,32}$/.test(String(o.key || "")) ? String(o.key) : uid();
+    if (s.claudeInbox.some((x: Json) => x.id === key)) { results.push("dup"); continue; }
+    const hit = o.nodeId ? nodeOf(s, String(o.nodeId)) : null;
+    if (kind === "step") {
+      const st = hit && (hit.n.steps || []).find((x: Json) => x.id === o.stepId);
+      if (!hit || !st) { results.push("skip: unknown step"); continue; }
+      s.claudeInbox.push({ id: key, type: "step_toggle", nodeId: hit.n.id, stepId: st.id, done: o.done !== false, source: "focusgate", at }); results.push("step");
+    } else if (kind === "node") {
+      if (!hit) { results.push("skip: unknown node"); continue; }
+      s.claudeInbox.push({ id: key, type: "node_toggle", nodeId: hit.n.id, done: o.done !== false, source: "focusgate", at }); results.push("node");
+    } else if (kind === "round") {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(String(o.date || "")) ? String(o.date) : today();
+      const nodeId = hit ? hit.n.id : "";
+      const e = o.entryId ? (((s.dayplan || {})[date]) || []).find((x: Json) => x.id === o.entryId) : null;
+      if (e) {
+        // a planned block: ticking it books its minutes, exactly as a tick in the app does
+        if (planDone(s, e)) { results.push("dup"); continue; }
+        s.claudeInbox.push({ id: key, type: "plan_toggle", date, entryId: e.id, done: true, nodeId, source: "focusgate", at }); results.push("plan");
+      } else {
+        const h = (s.habits || []).find((x: Json) => x.id === o.habitId);
+        if (!h) { results.push("skip: unknown habit"); continue; }
+        const t = o.start ? parseTime(String(o.start)) : null;
+        const minutes = Math.min(240, Math.max(1, Math.round(Number(o.minutes) || 30)));
+        s.claudeInbox.push({ id: key, type: "activity", habitId: h.id, minutes, cards: 0, date, slot: t ? t.slot : -1, offset: t ? t.offset : 0, nodeId, source: "focusgate", at }); results.push("activity");
+      }
+    } else results.push("skip: unknown op");
+  }
+  return results;
+}
+
 // ---------- MCP plumbing ----------
 const TOOLS = [
   { name: "get_daily_brief", description: "Tömör napi kép az Yggdrasilból egy adott napra (alapból ma): napiterv, szokások, kategória-célok, a fa szintjei, nyitott feladatok, térképek aktív stációja, napló. Minden elemnél ott az azonosító, amit a többi eszköz elfogad.", inputSchema: { type: "object", properties: { date: { type: "string", description: "ÉÉÉÉ-HH-NN, alapból ma" } } } },
@@ -234,9 +307,12 @@ async function callTool(name: string, args: Json) {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS" } });
 const rpcError = (id: unknown, code: number, message: string) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
 
-async function handle(m: Json) {
+async function handle(m: Json, fgOnly: boolean) {
   const id = m.id; const method = m.method; const p = m.params || {};
   try {
+    if (method === "fg/snapshot") { const row = await loadRow(); return { jsonrpc: "2.0", id, result: fgSnapshot(row.data || {}, /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || "")) ? String(p.date) : today()) }; }
+    if (method === "fg/op") { const row = await loadRow(); const s = row.data || {}; const results = fgOps(s, p); if (results.some(r => r !== "dup" && !r.startsWith("skip"))) { await saveRow(s); await log("fg_op", results.join(", ").slice(0, 300), p); } return { jsonrpc: "2.0", id, result: { results } }; }
+    if (fgOnly) return rpcError(id, -32601, "Method not found: " + method);
     if (method === "initialize") return { jsonrpc: "2.0", id, result: { protocolVersion: typeof p.protocolVersion === "string" ? p.protocolVersion : "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "yggdrasil-mcp", version: "0.1.0" } } };
     if (method === "ping") return { jsonrpc: "2.0", id, result: {} };
     if (method === "tools/list") return { jsonrpc: "2.0", id, result: { tools: TOOLS } };
@@ -251,14 +327,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return json(null, 204);
   const parts = new URL(req.url).pathname.split("/").filter(Boolean);
   const tok = parts[parts.length - 1];
-  if (!TOKEN || !USER_ID || parts.length < 2 || tok !== TOKEN) return new Response("Not found", { status: 404 });
+  const isMcp = !!TOKEN && tok === TOKEN, isFg = !!FG_TOKEN && tok === FG_TOKEN;
+  if (!USER_ID || parts.length < 2 || (!isMcp && !isFg)) return new Response("Not found", { status: 404 });
   if (req.method === "GET") return new Response("Yggdrasil MCP – POST JSON-RPC ide.", { status: 405, headers: { Allow: "POST" } });
   if (req.method === "DELETE") return new Response(null, { status: 204 });
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   let body: unknown; try { body = await req.json(); } catch { return json(rpcError(null, -32700, "Parse error"), 400); }
   const msgs = Array.isArray(body) ? body : [body];
   const out: unknown[] = [];
-  for (const m of msgs as Json[]) { if (!m || typeof m !== "object") continue; if (m.id === undefined || m.id === null) continue; out.push(await handle(m)); }
+  for (const m of msgs as Json[]) { if (!m || typeof m !== "object") continue; if (m.id === undefined || m.id === null) continue; out.push(await handle(m, !isMcp)); }
   if (!out.length) return new Response(null, { status: 202 });
   return json(Array.isArray(body) ? out : out[0]);
 });
