@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yggdrasil V0.8</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="progressmap.css?v=73">
-<link rel="stylesheet" href="tree.css?v=73">
+<link rel="stylesheet" href="progressmap.css?v=74">
+<link rel="stylesheet" href="tree.css?v=74">
 <meta name="theme-color" content="#497a55">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -89,16 +89,17 @@
 <div class="modalbg" id="dayModal"><div class="modal" style="width:min(460px,100%)"><div class="modalhead"><h3 id="dayTitle">Nap szerkesztése</h3><button class="x" data-close="dayModal">✕</button></div><div id="dayBody"></div></div></div>
 <div class="modalbg" id="pmapModal"><div class="modal" style="width:min(640px,100%)"><div class="modalhead"><h3 id="pmapModalTitle">Térkép</h3><button class="x" data-close="pmapModal">✕</button></div><div id="pmapModalBody"></div></div></div>
 <div class="toast" id="toast"></div>
-<script src="sync.js?v=73"></script>
-<script src="progressmap.js?v=73"></script>
-<script src="tree.js?v=73"></script>
-<script src="hubs.js?v=73"></script>
-<script src="catlog.js?v=73"></script>
-<script src="levels.js?v=73"></script>
-<script src="focus.js?v=73"></script>
-<script src="streak.js?v=73"></script>
-<script src="oraterv.js?v=73"></script>
-<script src="todos.js?v=73"></script>
+<script src="sync.js?v=74"></script>
+<script src="progressmap.js?v=74"></script>
+<script src="tree.js?v=74"></script>
+<script src="hubs.js?v=74"></script>
+<script src="catlog.js?v=74"></script>
+<script src="levels.js?v=74"></script>
+<script src="focus.js?v=74"></script>
+<script src="streak.js?v=74"></script>
+<script src="oraterv.js?v=74"></script>
+<script src="todos.js?v=74"></script>
+<script src="fgstart.js?v=74"></script>
 <script>
 (function(){
 'use strict';
@@ -668,6 +669,7 @@ FOCUS.init({state:()=>state,save,render,esc,today,toast,top,setLog,clearLog,getL
 STREAK.init({state:()=>state,save,render,go,esc,today,toast,complete,periodsUntilToday});
 ORATERV.init({state:()=>state,save,render,esc,uid,today,toast,top,getLog,habitMinutesOn,planEntries,planDone});
 TODOS.init({state:()=>state,save,render,esc,uid,today,toast,top,todoHabitId,toggleTask,getLog,setLog,clearLog,planTaskModal,go});
+if(window.FGSTART)FGSTART.init({state:()=>state,render,toast,go,pomoCandidates,pomoStart,pomoSchedule,pomoDraft:()=>pomoDraft});
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.view)));$('histBack').addEventListener('click',navBack);$('histFwd').addEventListener('click',navFwd);window.addEventListener('popstate',e=>{const om=document.querySelector('.modalbg.show');if(om){closeModal(om.id);try{history.replaceState({ygg:histIdx},'')}catch(x){}return}const s=e.state;if(!s||typeof s.ygg!=='number')return;if(s.ygg<histIdx)navBack();else if(s.ygg>histIdx)navFwd()});document.addEventListener('keydown',e=>{if(!e.altKey||e.ctrlKey||e.metaKey)return;if(e.key==='ArrowLeft'){e.preventDefault();navBack()}else if(e.key==='ArrowRight'){e.preventDefault();navFwd()}});document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));document.querySelectorAll('[data-emoji-for]').forEach(b=>b.addEventListener('click',()=>{const p=buildEmojiPanel(b.dataset.emojiFor);if(p)p.classList.toggle('show')}));document.querySelectorAll('[data-opt-hide]').forEach(b=>b.addEventListener('click',()=>{habitOptOpen.delete(b.dataset.optHide);habitOptUI()}));document.querySelectorAll('.modalbg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));if(!UILEVEL.allowed(currentView))currentView='prio';render();setInterval(pomoTick,1000);if(loadDegraded)setTimeout(()=>toast('⚠️ Betöltési hiba ('+loadDegraded+') – az adataid megvannak, de frissítsd az appot, és szólj a fejlesztőnek.'),800);if(sbFromHash())toast('Beléptél. Szinkronizálás…');else sbLoad();baseLoad();if(sb.refresh)syncPull();offloadImages();blobFlush();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')schedulePull()});window.addEventListener('focus',schedulePull);window.addEventListener('online',schedulePull);setInterval(()=>{if(sb.refresh&&document.visibilityState==='visible'&&!syncBusy)syncPull()},90000);
 if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(()=>{});
 document.addEventListener('input',e=>{const inp=e.target.closest('[data-szuro]');if(!inp)return;const t=inp.value.trim().toLowerCase(),cel=document.getElementById(inp.dataset.szuro);if(!cel)return;[...cel.children].forEach(el=>{el.style.display=!t||el.textContent.toLowerCase().includes(t)?'':'none'})});
